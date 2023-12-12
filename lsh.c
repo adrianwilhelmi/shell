@@ -200,21 +200,24 @@ void handle_commands(struct Commands*commands, int number_of_commands, int shoul
 			pipe(commands->fd);
 			fd_temp_out = commands->fd[1];
 			fd_temp_in = commands->fd[0];
-			commands = commands->next;
 		}
 		dup2(fd_temp_out, 1);
 		close(fd_temp_out);
 		
 		pid = fork();
 		if(pid == 0){
+			if(i != number_of_commands - 1){
+				close(commands->fd[0]);
+				close(commands->fd[1]);
+			}
 			execvp(commands->command[0], commands->command);
 			perror("unknown command");
-			commands = commands->next;
 			exit(EXIT_FAILURE);
 		}
 		wait(NULL);
-		if(i != number_of_commands - 1){
-			free_commands(commands, 1);
+		
+		if(i != number_of_commands -1){
+			commands = commands->next;
 		}
 	}
 	
