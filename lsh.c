@@ -3,21 +3,28 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<limits.h> //needed for PATH_MAX (for me its 4096), dunno if ill use it
-#include<unistd.h> //needed for getcwd
+#include<unistd.h> //needed for getcwd, pipe()..
 #include<string.h>
 #include<signal.h>
+#include<sys/wait.h>
 
 struct Commands{
 	//list of commands
+	//	command - command in a form of array of strings, each array field containing one word
+	//	input and output - input and output file descriptors respectively, used only when dealing with pipes
+	//	next - pointer to the next command
 	char**command;
+	int fd[2];		//pipe descriptors
 	struct Commands*next;
 };
 
 int read_line(char**line);
 int split_line_into_words(char*words[], char*line);
-int parse_words_into_commands(struct Commands*commands, char**words, int number_of_words);
-void free_commands(struct Commands*commands, int number_of_commands)
-void lsh_loop(int loop_status);
+int parse_words_into_commands(struct Commands*commands, char**words, const int number_of_words);
+void free_commands(struct Commands*commands, int number_of_commands);
+void lsh_loop();
+void sigint_handler();
+void sigchld_handler();
 
 
 void sigint_handler(){
@@ -26,6 +33,9 @@ void sigint_handler(){
 	exit(0);
 }
 
+void sigchld_handler(){
+	waitpid(-1, NULL, WNOHANG);
+}
 
 int read_line(char**line){
 	//prints current directory and parses input from terminal to *line
@@ -92,7 +102,7 @@ int split_line_into_words(char*words[], char*line){
 	return number_of_words;
 }
 
-int parse_words_into_commands(struct Commands *commands, char*words[], int number_of_words){
+int parse_words_into_commands(struct Commands *commands, char*words[], const int number_of_words){
 	//parses separateed words from the input into commands
 	//each command is an array of strings
 	//commands are separated by '|'
@@ -144,7 +154,7 @@ int parse_words_into_commands(struct Commands *commands, char*words[], int numbe
 	return number_of_commands;
 }
 
-void free_commands(struct Commands*commands, int number_of_commands){
+void free_commands(struct Commands*commands, const int number_of_commands){
 	//cleans memory after commands are executed
 	//input:
 	//	commands (struct Commands*) - commands to be freed
@@ -166,9 +176,57 @@ void free_commands(struct Commands*commands, int number_of_commands){
 	}
 }
 
-void handle_commands(struct Commands*commands)
+void handle_commands(struct Commands*commands, int number_of_commands, int should_wait){
+	//handles commands from the input line
+	//input:
+	//	commands (struct Commands*) - commands to handle
+	//	number_of_commands (int) - number of commands
 
-void lsh_loop(int loop_status){
+	//
+	int fd_terminal_input = dup(0);
+	int fd_terminal_output = dup(1);
+	
+	int fd_temp_in = dup(fd_terminal_input);
+	int fd_temp_out;
+	pid_t pid;
+	
+	for(int i = 0; i < number_of_commands; ++i){
+		dup2(fd_temp_in, 0);
+		close(fd_temp_in);
+		if(i == number_of_commands - 1){
+			fd_temp_out = dup(fd_terminal_output);
+		}
+		else{
+			pipe(commands->fd);
+			fd_temp_out = commands->fd[1];
+			fd_temp_in = commands->fd[0];
+			commands = commands->next;
+		}
+		dup2(fd_temp_out, 1);
+		close(fd_temp_out);
+		
+		pid = fork();
+		if(pid == 0){
+			execvp(commands->command[0], commands->command);
+			perror("unknown command");
+			commands = commands->next;
+			exit(EXIT_FAILURE);
+		}
+		wait(NULL);
+		if(i != number_of_commands - 1){
+			free_commands(commands, 1);
+		}
+	}
+	
+	dup2(fd_terminal_input, 0);
+	dup2(fd_terminal_output, 1);
+	close(fd_terminal_input);
+	close(fd_terminal_output);
+}
+
+
+
+void lsh_loop(){
 	//main loop
 	//input:
 	//	loop_status - flag to iterate to the next loop
@@ -177,8 +235,11 @@ void lsh_loop(int loop_status){
 	char**words;
 	struct Commands*commands;
 	
+	static int loop_status = 1;
 	//local 'PATH_MAX'
 	static int path_max;
+	//used to handle &, initially we wait 
+	static int should_wait = 1;
 	
 	signal(SIGINT, sigint_handler);
 	
@@ -186,7 +247,7 @@ void lsh_loop(int loop_status){
 		//read line
 		path_max = read_line(&line);
 		
-		//parse input
+		//parse input into words
 		words = malloc(path_max*sizeof(char*));
 		int number_of_words = split_line_into_words(words, line);
 		free(line);
@@ -198,11 +259,21 @@ void lsh_loop(int loop_status){
 		commands = malloc(sizeof(struct Commands));
 		int number_of_commands = parse_words_into_commands(commands, words, number_of_words);	
 		
+		//handle commands
+		signal(SIGCHLD, sigchld_handler);
+		int child = fork();
+		if(child == 0){
+			handle_commands(commands, number_of_commands, should_wait);
+		}
+		else{
+			if(should_wait){
+				int status = 0;
+				int wpid = waitpid(child, &status, 0);
+			}
+		}
 		
 		
-		
-		
-		
+		//free memory before allocating it again
 		for(int i = 0; i < number_of_words; ++i){
 			free(words[i]);
 		}
@@ -214,7 +285,6 @@ void lsh_loop(int loop_status){
 }
 
 int main(){
-	int loop_status = 1;
-	lsh_loop(loop_status);
+	lsh_loop();
 	return 0;
 }
