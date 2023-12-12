@@ -16,9 +16,12 @@ struct Commands{
 int read_line(char**line);
 int split_line_into_words(char*words[], char*line);
 int parse_words_into_commands(struct Commands*commands, char**words, int number_of_words);
+void free_commands(struct Commands*commands, int number_of_commands)
 void lsh_loop(int loop_status);
 
+
 void sigint_handler(){
+	//handling SIGINT
 	printf("\nsigint\n");
 	exit(0);
 }
@@ -29,7 +32,7 @@ int read_line(char**line){
 	//input:
 	//	*line (*char) - pointer to string where input will be stored
 	//output:
-	//	buffer_size (int) - smallest 2^n that is > sizeof(*line)
+	//	buffer_size (int) - smallest 2^n that is > sizeof(*line), amount of memory allocated for *line
 	
 	//print current directory
 	int buffer_size = 1;
@@ -90,7 +93,20 @@ int split_line_into_words(char*words[], char*line){
 }
 
 int parse_words_into_commands(struct Commands *commands, char*words[], int number_of_words){
+	//parses separateed words from the input into commands
+	//each command is an array of strings
+	//commands are separated by '|'
+	//commands are represented by a linked list
+	//input:
+	//	commands (struct Commands*) - pointer to the beggining of commands linked list
+	//							commands will be put there
+	//	words[] - (char*) - array of words from the input
+	//	number_of_words (int) - number of words
+	//output:
+	//	number_of_commands (int) - number of commands
+	
 	int number_of_commands = 0;
+	//index of latest '|' found 
 	int pipe_index = 0;
 	
 	for(int i = 0; i <= number_of_words; ++i){
@@ -98,32 +114,42 @@ int parse_words_into_commands(struct Commands *commands, char*words[], int numbe
 			
 			int k = 0;
 			int j = pipe_index;
+			//initialize new command
 			commands->command = malloc((i-pipe_index+1)*sizeof(char*));
 			commands->next = NULL;
 	
 			while(j < i){
+				//copy words to command until the moment when word[j] = '|'
 				commands->command[k] = calloc(strlen(words[j]) + 1, sizeof(char));
 				strcpy(commands->command[k], words[j]);
-//				free(words[j]);
 				++k;
 				++j;
 			
 			}
+			//last word in command is NULL
 			commands->command[k] = NULL;
+			
+			//allocate memory for new command
 			commands->next = malloc(sizeof(struct Commands));
 			commands = commands->next;
+
 			++number_of_commands;
 			pipe_index = i+1;
 		}
 	}
 	
-//	commands->next = NULL;
+	//allocated one more before jumping out of loop, need to free it
 	free(commands);
 	
 	return number_of_commands;
 }
 
 void free_commands(struct Commands*commands, int number_of_commands){
+	//cleans memory after commands are executed
+	//input:
+	//	commands (struct Commands*) - commands to be freed
+	//	number_of_commands (int) - number of commands
+	
 	struct Commands* prev = commands;
 	for(int i = 0; i < number_of_commands; ++i){
 		for(int j = 0; commands->command[j] != NULL; ++j){
@@ -140,19 +166,27 @@ void free_commands(struct Commands*commands, int number_of_commands){
 	}
 }
 
+void handle_commands(struct Commands*commands)
 
 void lsh_loop(int loop_status){
+	//main loop
+	//input:
+	//	loop_status - flag to iterate to the next loop
+	
 	char*line;
 	char**words;
 	struct Commands*commands;
-	struct Commands*first_command;
+	
+	//local 'PATH_MAX'
 	static int path_max;
 	
 	signal(SIGINT, sigint_handler);
 	
 	while(loop_status){
+		//read line
 		path_max = read_line(&line);
 		
+		//parse input
 		words = malloc(path_max*sizeof(char*));
 		int number_of_words = split_line_into_words(words, line);
 		free(line);
@@ -160,9 +194,14 @@ void lsh_loop(int loop_status){
 			continue;
 		}
 		
+		//parse words into commands
 		commands = malloc(sizeof(struct Commands));
-		first_command = commands;
 		int number_of_commands = parse_words_into_commands(commands, words, number_of_words);	
+		
+		
+		
+		
+		
 		
 		for(int i = 0; i < number_of_words; ++i){
 			free(words[i]);
