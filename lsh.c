@@ -2,8 +2,7 @@
 
 #include<stdio.h>
 #include<stdlib.h>
-#include<limits.h> //needed for PATH_MAX (for me its 4096), dunno if ill use it
-#include<unistd.h> //needed for getcwd, pipe()..
+#include<unistd.h>
 #include<string.h>
 #include<signal.h>
 #include<sys/wait.h>
@@ -21,7 +20,10 @@ struct Commands{
 int read_line(char**line);
 int split_line_into_words(char*words[], char*line);
 int parse_words_into_commands(struct Commands*commands, char**words, const int number_of_words);
+int handle_process_in_background(struct Commands*commands, int number_of_commands);
+void redirect_command(struct Commands*commands, int number_of_commands, char*paths[3]);
 void free_commands(struct Commands*commands, int number_of_commands);
+void handle_commands(struct Commands*commands, int number_of_commands);
 void lsh_loop();
 void sigint_handler();
 void sigchld_handler();
@@ -116,12 +118,12 @@ int parse_words_into_commands(struct Commands *commands, char*words[], const int
 	//	number_of_commands (int) - number of commands
 	
 	int number_of_commands = 0;
+	
 	//index of latest '|' found 
 	int pipe_index = 0;
 	
 	for(int i = 0; i <= number_of_words; ++i){
 		if(i == number_of_words || words[i][0] == '|'){
-			
 			int k = 0;
 			int j = pipe_index;
 			//initialize new command
@@ -154,6 +156,114 @@ int parse_words_into_commands(struct Commands *commands, char*words[], const int
 	return number_of_commands;
 }
 
+int handle_process_in_background(struct Commands*commands, int number_of_commands){
+	//decides if process should be handled in background
+	//it depends on if last word of last command is &
+	//if so then last word of last command is freed and flag should_wait is returned\
+	//input:
+	//	commands (struct Commands*) - pointer to commands;
+	//	number_of_commands (int) - number_of_commands;
+	//output:
+	//	should_wait (int) = 1 if output should be handled in background
+	//					0 otherwise
+	
+	//go to last command
+	for(int i = 0; i < number_of_commands-1; ++i){
+		commands = commands->next;
+	}
+	
+	//find length of last command
+	int last_command_len = 0;
+	while(commands->command[last_command_len] != NULL){
+		++last_command_len;
+	}
+	
+	//if last word of last command == &: free it and return 0
+	if(strcmp(commands->command[last_command_len-1], "&") == 0){
+		commands->command[last_command_len-1] = NULL;
+		free(commands->command[last_command_len]);
+		return 0;
+	}
+	return 1;
+}
+
+void redirect_command(struct Commands*commands, int number_of_commands, char*paths[3]){
+	//analyses if theres < in the first command or if theres > or 2> in the last command
+	//if so: redirects input, output or error output to path located in the word after the redirection command
+	//input:
+	//	commands (struct Commands*) - commands
+	//	number_of_commands (int) - number of commands
+	//	paths[3] (char*) - array containing paths for redirection
+	//		paths[0] - path to input
+	//		paths[1] - path to output
+	//		paths[3] - path to error output
+
+	int index = 0;
+	
+	//only first command can redirect input
+	while(commands->command[index+1] != NULL){
+		if(strcmp(commands->command[index], "<") == 0){
+			paths[0] = malloc((strlen(commands->command[index + 1]) + 1) * sizeof(char));
+			strcpy(paths[0], commands->command[index+1]);
+			
+			//remove ["<", "path"] and concatenate words before and after it
+			int i = index;
+			while(commands->command[i] != NULL){
+				++i;
+			}
+			for(int j = index; j < i-2; ++j){
+				strcpy(commands->command[j], commands->command[j+2]);
+			}
+			free(commands->command[i]);
+			free(commands->command[i-1]);
+			commands->command[i-2] = NULL;
+		}
+	}
+	
+	//go to last command
+	for(int i = 0; i < number_of_commands - 1; ++i){
+		commands = commands->next;
+	}
+	
+	index = 0;
+	
+	//only last command can redirect output and err output (first command can be last if it's the only one)
+	while(commands->command[index+1] != NULL){
+		if(strcmp(commands->command[index], ">") == 0){
+			paths[1] = malloc((strlen(commands->command[index + 1]) + 1) * sizeof(char));
+			strcpy(paths[1], commands->command[index+1]);
+			
+			//remove [">", "path"] and concatenate words before and after it
+			int i = index;
+			while(commands->command[i] != NULL){
+				++i;
+			}
+			for(int j = index; j < i-2; ++j){
+				strcpy(commands->command[j], commands->command[j+2]);
+			}
+			free(commands->command[i]);
+			free(commands->command[i-1]);
+			commands->command[i-2] = NULL;
+		}
+		else if(strcmp(commands->command[index], "2>") == 0){
+			paths[2] = malloc((strlen(commands->command[index + 1]) + 1) * sizeof(char));
+			strcpy(paths[2], commands->command[index+1]);
+			
+			//remove ["2>", "path"] and concatenate words before and after it
+			int i = index;
+			while(commands->command[i] != NULL){
+				++i;
+			}
+			for(int j = index; j < i-2; ++j){
+				strcpy(commands->command[j], commands->command[j+2]);
+			}
+			free(commands->command[i]);
+			free(commands->command[i-1]);
+			commands->command[i-2] = NULL;
+		}
+	}
+}
+
 void free_commands(struct Commands*commands, const int number_of_commands){
 	//cleans memory after commands are executed
 	//input:
@@ -176,13 +286,12 @@ void free_commands(struct Commands*commands, const int number_of_commands){
 	}
 }
 
-void handle_commands(struct Commands*commands, int number_of_commands, int should_wait){
+void handle_commands(struct Commands*commands, int number_of_commands){
 	//handles commands from the input line
 	//input:
 	//	commands (struct Commands*) - commands to handle
 	//	number_of_commands (int) - number of commands
-
-	//
+	
 	int fd_terminal_input = dup(0);
 	int fd_terminal_output = dup(1);
 	
@@ -190,7 +299,22 @@ void handle_commands(struct Commands*commands, int number_of_commands, int shoul
 	int fd_temp_out;
 	pid_t pid;
 	
+	//handle redirecting
+	char*paths[3];
+	redirect_command(commands, number_of_commands, paths);
+	//create fds for new files if redirecting
+	if(paths[0] != NULL){
+		int new_fd = open(paths[0], O_WRONLY | O_CREAT);
+		if(new_fd == -1){
+			perror("opening/creating file to redirect");
+			exit(EXIT_FAILURE);
+		}
+		dup2(new_fd, 0);
+	}
+	
+	
 	for(int i = 0; i < number_of_commands; ++i){
+		
 		dup2(fd_temp_in, 0);
 		close(fd_temp_in);
 		if(i == number_of_commands - 1){
@@ -260,21 +384,28 @@ void lsh_loop(){
 		
 		//parse words into commands
 		commands = malloc(sizeof(struct Commands));
-		int number_of_commands = parse_words_into_commands(commands, words, number_of_words);	
+		int number_of_commands = parse_words_into_commands(commands, words, number_of_words);
+		
 		
 		//handle commands
-		signal(SIGCHLD, sigchld_handler);
-		int child = fork();
+		//handle &
+		should_wait = handle_process_in_background(commands, number_of_commands);
+		
+		//handle pipes
+		signal(SIGINT, sigint_handler);
+		pid_t child = fork();
 		if(child == 0){
-			handle_commands(commands, number_of_commands, should_wait);
+			handle_commands(commands, number_of_commands);
 		}
 		else{
 			if(should_wait){
 				int status = 0;
 				int wpid = waitpid(child, &status, 0);
 			}
+			else{
+				printf("PID: %d\n", child);
+			}
 		}
-		
 		
 		//free memory before allocating it again
 		for(int i = 0; i < number_of_words; ++i){
