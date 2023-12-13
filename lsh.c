@@ -6,6 +6,7 @@
 #include<string.h>
 #include<signal.h>
 #include<sys/wait.h>
+#include<fcntl.h>
 
 struct Commands{
 	//list of commands
@@ -36,6 +37,7 @@ void sigint_handler(){
 }
 
 void sigchld_handler(){
+	
 	waitpid(-1, NULL, WNOHANG);
 }
 
@@ -203,6 +205,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 	//only first command can redirect input
 	while(commands->command[index+1] != NULL){
 		if(strcmp(commands->command[index], "<") == 0){
+			//copy file after > to paths[0]
 			paths[0] = malloc((strlen(commands->command[index + 1]) + 1) * sizeof(char));
 			strcpy(paths[0], commands->command[index+1]);
 			
@@ -218,6 +221,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 			free(commands->command[i-1]);
 			commands->command[i-2] = NULL;
 		}
+		++index;
 	}
 	
 	//go to last command
@@ -230,6 +234,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 	//only last command can redirect output and err output (first command can be last if it's the only one)
 	while(commands->command[index+1] != NULL){
 		if(strcmp(commands->command[index], ">") == 0){
+			//copy file after > to paths[1]
 			paths[1] = malloc((strlen(commands->command[index + 1]) + 1) * sizeof(char));
 			strcpy(paths[1], commands->command[index+1]);
 			
@@ -246,6 +251,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 			commands->command[i-2] = NULL;
 		}
 		else if(strcmp(commands->command[index], "2>") == 0){
+			//copy file after > to paths[2]
 			paths[2] = malloc((strlen(commands->command[index + 1]) + 1) * sizeof(char));
 			strcpy(paths[2], commands->command[index+1]);
 			
@@ -261,6 +267,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 			free(commands->command[i-1]);
 			commands->command[i-2] = NULL;
 		}
+		++index;
 	}
 }
 
@@ -292,33 +299,39 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	//	commands (struct Commands*) - commands to handle
 	//	number_of_commands (int) - number of commands
 	
-	int fd_terminal_input = dup(0);
-	int fd_terminal_output = dup(1);
+	int fd_final_input = dup(0);	//terminal input
+	int fd_final_output = dup(1);	//terminal output
 	
-	int fd_temp_in = dup(fd_terminal_input);
+	int fd_temp_in = dup(fd_final_input);
 	int fd_temp_out;
 	pid_t pid;
 	
 	//handle redirecting
 	char*paths[3];
+	paths[0] = NULL;
+	paths[1] = NULL;
+	paths[2] = NULL;
+	
 	redirect_command(commands, number_of_commands, paths);
+	
 	//create fds for new files if redirecting
 	if(paths[0] != NULL){
-		int new_fd = open(paths[0], O_WRONLY | O_CREAT);
-		if(new_fd == -1){
-			perror("opening/creating file to redirect");
-			exit(EXIT_FAILURE);
-		}
-		dup2(new_fd, 0);
+		int new_input_fd = open(paths[0], O_RDWR | O_CREAT);
+		dup2(new_input_fd, fd_temp_in);	
+		close(new_input_fd);
+	}
+	if(paths[1] != NULL){
+		int new_output_fd = open(paths[1], O_RDWR | O_CREAT);
+		dup2(new_output_fd, fd_final_output);
+		close(new_output_fd);
 	}
 	
 	
 	for(int i = 0; i < number_of_commands; ++i){
-		
 		dup2(fd_temp_in, 0);
 		close(fd_temp_in);
 		if(i == number_of_commands - 1){
-			fd_temp_out = dup(fd_terminal_output);
+			fd_temp_out = dup(fd_final_output);
 		}
 		else{
 			pipe(commands->fd);
@@ -345,10 +358,14 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 		}
 	}
 	
-	dup2(fd_terminal_input, 0);
-	dup2(fd_terminal_output, 1);
-	close(fd_terminal_input);
-	close(fd_terminal_output);
+	free(paths[0]);
+	free(paths[1]);
+	free(paths[2]);
+	
+	dup2(fd_final_input, 0);
+	dup2(fd_final_output, 1);
+	close(fd_final_input);
+	close(fd_final_output);
 }
 
 
