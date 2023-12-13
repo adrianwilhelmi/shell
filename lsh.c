@@ -206,8 +206,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 	while(commands->command[index+1] != NULL){
 		if(strcmp(commands->command[index], "<") == 0){
 			//copy file after > to paths[0]
-			paths[0] = malloc((strlen(commands->command[index + 1]) + 1) * sizeof(char));
-			strcpy(paths[0], commands->command[index+1]);
+			paths[0] = strdup(commands->command[index+1]);
 			
 			//remove ["<", "path"] and concatenate words before and after it
 			int i = index;
@@ -215,10 +214,12 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 				++i;
 			}
 			for(int j = index; j < i-2; ++j){
-				strcpy(commands->command[j], commands->command[j+2]);
+				free(commands->command[j]);
+				commands->command[j] = strdup(commands->command[j + 2]);
 			}
 			free(commands->command[i]);
 			free(commands->command[i-1]);
+			free(commands->command[i-2]);
 			commands->command[i-2] = NULL;
 		}
 		++index;
@@ -235,8 +236,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 	while(commands->command[index+1] != NULL){
 		if(strcmp(commands->command[index], ">") == 0){
 			//copy file after > to paths[1]
-			paths[1] = malloc((strlen(commands->command[index + 1]) + 1) * sizeof(char));
-			strcpy(paths[1], commands->command[index+1]);
+			paths[1] = strdup(commands->command[index+1]);
 			
 			//remove [">", "path"] and concatenate words before and after it
 			int i = index;
@@ -244,16 +244,17 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 				++i;
 			}
 			for(int j = index; j < i-2; ++j){
-				strcpy(commands->command[j], commands->command[j+2]);
+				free(commands->command[j]);
+				commands->command[j] = strdup(commands->command[j + 2]);
 			}
 			free(commands->command[i]);
 			free(commands->command[i-1]);
+			free(commands->command[i-2]);
 			commands->command[i-2] = NULL;
 		}
 		else if(strcmp(commands->command[index], "2>") == 0){
 			//copy file after > to paths[2]
-			paths[2] = malloc((strlen(commands->command[index + 1]) + 1) * sizeof(char));
-			strcpy(paths[2], commands->command[index+1]);
+			paths[2] = strdup(commands->command[index+1]);
 			
 			//remove ["2>", "path"] and concatenate words before and after it
 			int i = index;
@@ -261,10 +262,12 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 				++i;
 			}
 			for(int j = index; j < i-2; ++j){
-				strcpy(commands->command[j], commands->command[j+2]);
+				free(commands->command[j]);
+				commands->command[j] = strdup(commands->command[j + 2]);
 			}
 			free(commands->command[i]);
 			free(commands->command[i-1]);
+			free(commands->command[i-2]);
 			commands->command[i-2] = NULL;
 		}
 		++index;
@@ -318,7 +321,7 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	//create fds for new files if redirecting
 	//<
 	if(paths[0] != NULL){
-		int new_input_fd = open(paths[0], O_RDWR | O_CREAT | O_TRUNC);
+		int new_input_fd = open(paths[0], O_RDWR | O_CREAT);
 		dup2(new_input_fd, fd_temp_in);	
 		close(new_input_fd);
 	}
@@ -342,7 +345,6 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 		close(fd_temp_in);
 		if(i == number_of_commands - 1){
 			fd_temp_out = dup(fd_redirected_output);
-			close(fd_redirected_output);
 		}
 		else{
 			pipe(commands->fd);
@@ -377,6 +379,8 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	dup2(fd_terminal_output, 1);
 	close(fd_terminal_input);
 	close(fd_terminal_output);
+	
+	close(fd_redirected_output);
 }
 
 
