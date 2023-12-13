@@ -18,16 +18,26 @@ struct Commands{
 	struct Commands*next;
 };
 
+
+//definitions
 int read_line(char**line);
 int split_line_into_words(char*words[], char*line);
 int parse_words_into_commands(struct Commands*commands, char**words, const int number_of_words);
 int handle_process_in_background(struct Commands*commands, int number_of_commands);
 void redirect_command(struct Commands*commands, int number_of_commands, char*paths[3]);
 void free_commands(struct Commands*commands, int number_of_commands);
-void handle_commands(struct Commands*commands, int number_of_commands);
+void handle_commands(struct Commands*commands, int number_of_commands, int should_wait);
 void lsh_loop();
 void sigint_handler();
 void sigchld_handler();
+
+//built in functions
+void handle_cd(struct Commands*commands);
+void handle_exit(struct Commands*commands);
+
+char*built_in_functions_keys[] = {"cd", "exit"};
+void(*built_in_functions[])(struct Commands*) = {&handle_cd, &handle_exit};
+
 
 
 void sigint_handler(){
@@ -37,9 +47,9 @@ void sigint_handler(){
 }
 
 void sigchld_handler(){
-	
 	waitpid(-1, NULL, WNOHANG);
 }
+
 
 int read_line(char**line){
 	//prints current directory and parses input from terminal to *line
@@ -278,7 +288,7 @@ void free_commands(struct Commands*commands, const int number_of_commands){
 	//cleans memory after commands are executed
 	//input:
 	//	commands (struct Commands*) - commands to be freed
-	//	number_of_commands (int) - number of commands
+	//	number_of_commands (int) - number of command
 	
 	struct Commands* prev = commands;
 	for(int i = 0; i < number_of_commands; ++i){
@@ -296,11 +306,39 @@ void free_commands(struct Commands*commands, const int number_of_commands){
 	}
 }
 
-void handle_commands(struct Commands*commands, int number_of_commands){
+void handle_cd(struct Commands*commands){
+	if(commands->command[1] == NULL){
+		printf("enter proper path\n");
+	}
+	else{
+		if(chdir(commands->command[1]) > 0){
+			perror("cd problem");
+		}
+	}
+}
+
+void handle_exit(struct Commands*commands){
+	free_commands(commands, 1);
+	exit(0);
+}
+
+void handle_built_in_functions(struct Commands*commands){
+	int functions_count = (sizeof(built_in_functions_keys) / sizeof(char *));
+
+	for(int i = 0; i < functions_count; ++i){
+		if(strcmp(commands->command[0], built_in_functions_keys[i]) == 0){
+			(*built_in_functions[i])(commands);
+		}
+	}
+}
+
+void handle_commands(struct Commands*commands, int number_of_commands, int should_wait){
 	//handles commands from the input line
 	//input:
 	//	commands (struct Commands*) - commands to handle
 	//	number_of_commands (int) - number of commands
+	//	should_wait (int) - flag if process should be running if background
+	//					if true output is set to 
 	
 	int fd_terminal_input = dup(0);			//terminal input
 	int fd_terminal_output = dup(1);			//terminal input
@@ -338,6 +376,10 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 		close(new_output_err_fd);
 	}
 	
+	free(paths[0]);
+	free(paths[1]);
+	free(paths[2]);
+	
 	//handle pipes
 	pid_t pid;
 	for(int i = 0; i < number_of_commands; ++i){
@@ -360,23 +402,35 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 				close(commands->fd[0]);
 				close(commands->fd[1]);
 			}
+			
+			
 			execvp(commands->command[0], commands->command);
 			perror("unknown command");
 			exit(EXIT_FAILURE);
 		}
-		wait(NULL);
-		
+		if(should_wait){
+			wait(NULL);
+		}
+		else{
+			signal(SIGCHLD, SIG_IGN);
+		}
 		if(i != number_of_commands -1){
 			commands = commands->next;
 		}
 	}
 	
-	free(paths[0]);
-	free(paths[1]);
-	free(paths[2]);
 	
 	dup2(fd_terminal_input, 0);
-	dup2(fd_terminal_output, 1);
+	
+	if(should_wait){
+		dup2(fd_terminal_output, 1);
+	}
+	else{
+		int fd_null = open("/dev/null", O_WRONLY);
+		dup2(fd_null, 1);
+		close(fd_null);
+	}
+	
 	close(fd_terminal_input);
 	close(fd_terminal_output);
 	
@@ -401,6 +455,7 @@ void lsh_loop(){
 	static int should_wait = 1;
 	
 	signal(SIGINT, sigint_handler);
+//	signal(SIGCHLD, SIG_IGN);
 	
 	while(loop_status){
 		//read line
@@ -420,14 +475,17 @@ void lsh_loop(){
 		
 		
 		//handle commands
+		//handle built in functions
+		handle_built_in_functions(commands);
+		
 		//handle &
 		should_wait = handle_process_in_background(commands, number_of_commands);
 		
 		//handle pipes
-		signal(SIGINT, sigint_handler);
+//		signal(SIGCHLD, sigchld_handler);
 		pid_t child = fork();
 		if(child == 0){
-			handle_commands(commands, number_of_commands);
+			handle_commands(commands, number_of_commands, should_wait);
 		}
 		else{
 			if(should_wait){
@@ -435,6 +493,7 @@ void lsh_loop(){
 				int wpid = waitpid(child, &status, 0);
 			}
 			else{
+				signal(SIGCHLD, SIG_IGN);
 				printf("PID: %d\n", child);
 			}
 		}
