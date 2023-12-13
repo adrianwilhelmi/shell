@@ -41,9 +41,7 @@ void(*built_in_functions[])(struct Commands*) = {&handle_cd, &handle_exit};
 
 
 void sigint_handler(){
-	//handling SIGINT
-	printf("\nsigint\n");
-	exit(0);
+	//ignore
 }
 
 void sigchld_handler(){
@@ -379,7 +377,10 @@ void handle_commands(struct Commands*commands, int number_of_commands, int shoul
 	free(paths[0]);
 	free(paths[1]);
 	free(paths[2]);
-	
+
+	if(!should_wait){
+		signal(SIGCHLD, SIG_IGN);
+	}
 	//handle pipes
 	pid_t pid;
 	for(int i = 0; i < number_of_commands; ++i){
@@ -411,9 +412,7 @@ void handle_commands(struct Commands*commands, int number_of_commands, int shoul
 		if(should_wait){
 			wait(NULL);
 		}
-		else{
-			signal(SIGCHLD, SIG_IGN);
-		}
+
 		if(i != number_of_commands -1){
 			commands = commands->next;
 		}
@@ -435,20 +434,18 @@ void handle_commands(struct Commands*commands, int number_of_commands, int shoul
 	close(fd_terminal_output);
 	
 	close(fd_redirected_output);
+	exit(0);
 }
 
 
 
 void lsh_loop(){
 	//main loop
-	//input:
-	//	loop_status - flag to iterate to the next loop
 	
 	char*line;
 	char**words;
 	struct Commands*commands;
 	
-	static int loop_status = 1;
 	//local 'PATH_MAX'
 	static int path_max;
 	//used to handle &, initially we wait 
@@ -457,7 +454,7 @@ void lsh_loop(){
 	signal(SIGINT, sigint_handler);
 //	signal(SIGCHLD, SIG_IGN);
 	
-	while(loop_status){
+	while(1){
 		//read line
 		path_max = read_line(&line);
 		
@@ -482,7 +479,8 @@ void lsh_loop(){
 		should_wait = handle_process_in_background(commands, number_of_commands);
 		
 		//handle pipes
-//		signal(SIGCHLD, sigchld_handler);
+		signal(SIGINT, SIG_DFL);
+		signal(SIGCHLD, sigchld_handler);
 		pid_t child = fork();
 		if(child == 0){
 			handle_commands(commands, number_of_commands, should_wait);
