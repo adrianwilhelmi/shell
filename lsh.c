@@ -299,12 +299,13 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	//	commands (struct Commands*) - commands to handle
 	//	number_of_commands (int) - number of commands
 	
-	int fd_final_input = dup(0);	//terminal input
-	int fd_final_output = dup(1);	//terminal output
+	int fd_terminal_input = dup(0);			//terminal input
+	int fd_terminal_output = dup(1);			//terminal input
 	
-	int fd_temp_in = dup(fd_final_input);
+	int fd_redirected_output = dup(1);			//if not redirected its same as terminal outut, input wont be needed
+	
+	int fd_temp_in = dup(fd_terminal_input);	//initially input is from terminal
 	int fd_temp_out;
-	pid_t pid;
 	
 	//handle redirecting
 	char*paths[3];
@@ -315,23 +316,33 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	redirect_command(commands, number_of_commands, paths);
 	
 	//create fds for new files if redirecting
+	//<
 	if(paths[0] != NULL){
-		int new_input_fd = open(paths[0], O_RDWR | O_CREAT);
+		int new_input_fd = open(paths[0], O_RDWR | O_CREAT | O_TRUNC);
 		dup2(new_input_fd, fd_temp_in);	
 		close(new_input_fd);
 	}
+	//>
 	if(paths[1] != NULL){
-		int new_output_fd = open(paths[1], O_RDWR | O_CREAT);
-		dup2(new_output_fd, fd_final_output);
+		int new_output_fd = open(paths[1], O_RDWR | O_CREAT | O_TRUNC);
+		dup2(new_output_fd, fd_redirected_output);
 		close(new_output_fd);
 	}
+	//2>
+	if(paths[2] != NULL){
+		int new_output_err_fd = open(paths[2], O_RDWR | O_CREAT | O_TRUNC);
+		dup2(new_output_err_fd, 2);
+		close(new_output_err_fd);
+	}
 	
-	
+	//handle pipes
+	pid_t pid;
 	for(int i = 0; i < number_of_commands; ++i){
 		dup2(fd_temp_in, 0);
 		close(fd_temp_in);
 		if(i == number_of_commands - 1){
-			fd_temp_out = dup(fd_final_output);
+			fd_temp_out = dup(fd_redirected_output);
+			close(fd_redirected_output);
 		}
 		else{
 			pipe(commands->fd);
@@ -362,10 +373,10 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	free(paths[1]);
 	free(paths[2]);
 	
-	dup2(fd_final_input, 0);
-	dup2(fd_final_output, 1);
-	close(fd_final_input);
-	close(fd_final_output);
+	dup2(fd_terminal_input, 0);
+	dup2(fd_terminal_output, 1);
+	close(fd_terminal_input);
+	close(fd_terminal_output);
 }
 
 
