@@ -417,7 +417,7 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 		//last command? yes -> output goes to terminal or to the proper file if redirected
 		if(i == number_of_commands - 1){
 			//if output was redirected to the same file as input then clear the file
-			if(paths[0] != NULL && paths[0] == paths[1]){
+			if(paths[0] != NULL){
 				int truncate_redirect = open(paths[1], O_TRUNC);
 			}
 			fd_temp_out = dup(fd_redirected_output);
