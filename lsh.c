@@ -26,7 +26,7 @@ int parse_words_into_commands(struct Commands*commands, char**words, const int n
 int handle_process_in_background(struct Commands*commands, int number_of_commands);
 void redirect_command(struct Commands*commands, int number_of_commands, char*paths[3]);
 void free_commands(struct Commands*commands, int number_of_commands);
-void handle_commands(struct Commands*commands, int number_of_commands, int should_wait);
+void handle_commands(struct Commands*commands, int number_of_commands);
 void lsh_loop();
 void sigint_handler();
 void sigchld_handler();
@@ -190,6 +190,7 @@ int handle_process_in_background(struct Commands*commands, int number_of_command
 	
 	//if last word of last command == &: free it and return 0
 	if(strcmp(commands->command[last_command_len-1], "&") == 0){
+		free(commands->command[last_command_len-1]);
 		commands->command[last_command_len-1] = NULL;
 		free(commands->command[last_command_len]);
 		return 0;
@@ -330,7 +331,7 @@ void handle_built_in_functions(struct Commands*commands){
 	}
 }
 
-void handle_commands(struct Commands*commands, int number_of_commands, int should_wait){
+void handle_commands(struct Commands*commands, int number_of_commands){
 	//handles commands from the input line
 	//input:
 	//	commands (struct Commands*) - commands to handle
@@ -377,18 +378,19 @@ void handle_commands(struct Commands*commands, int number_of_commands, int shoul
 	free(paths[0]);
 	free(paths[1]);
 	free(paths[2]);
-
-	if(!should_wait){
-		signal(SIGCHLD, SIG_IGN);
-	}
+	
 	//handle pipes
+	//first command's input is either set to terminal or proper file if redirected
 	pid_t pid;
 	for(int i = 0; i < number_of_commands; ++i){
 		dup2(fd_temp_in, 0);
 		close(fd_temp_in);
+		
+		//last command? yes -> output goes to terminal or to the proper file if redirected
 		if(i == number_of_commands - 1){
 			fd_temp_out = dup(fd_redirected_output);
 		}
+		
 		else{
 			pipe(commands->fd);
 			fd_temp_out = commands->fd[1];
@@ -409,26 +411,14 @@ void handle_commands(struct Commands*commands, int number_of_commands, int shoul
 			perror("unknown command");
 			exit(EXIT_FAILURE);
 		}
-		if(should_wait){
-			wait(NULL);
-		}
+		wait(NULL);
 
 		if(i != number_of_commands -1){
 			commands = commands->next;
 		}
 	}
 	
-	
 	dup2(fd_terminal_input, 0);
-	
-	if(should_wait){
-		dup2(fd_terminal_output, 1);
-	}
-	else{
-		int fd_null = open("/dev/null", O_WRONLY);
-		dup2(fd_null, 1);
-		close(fd_null);
-	}
 	
 	close(fd_terminal_input);
 	close(fd_terminal_output);
@@ -452,7 +442,7 @@ void lsh_loop(){
 	static int should_wait = 1;
 	
 	signal(SIGINT, sigint_handler);
-//	signal(SIGCHLD, SIG_IGN);
+	signal(SIGCHLD, sigchld_handler);
 	
 	while(1){
 		//read line
@@ -470,6 +460,10 @@ void lsh_loop(){
 		commands = malloc(sizeof(struct Commands));
 		int number_of_commands = parse_words_into_commands(commands, words, number_of_words);
 		
+		for(int i = 0; i < number_of_words; ++i){
+			free(words[i]);
+		}
+		free(words);
 		
 		//handle commands
 		//handle built in functions
@@ -479,29 +473,32 @@ void lsh_loop(){
 		should_wait = handle_process_in_background(commands, number_of_commands);
 		
 		//handle pipes
-		signal(SIGINT, SIG_DFL);
-		signal(SIGCHLD, sigchld_handler);
-		pid_t child = fork();
-		if(child == 0){
-			handle_commands(commands, number_of_commands, should_wait);
-		}
-		else{
-			if(should_wait){
-				int status = 0;
-				int wpid = waitpid(child, &status, 0);
+		if(!should_wait){
+			signal(SIGCHLD, SIG_IGN);		
+			pid_t child = fork();
+			if(child == 0){
+				int fd_null = open("/dev/null", O_WRONLY);
+				dup2(fd_null, 1);
+				close(fd_null);
+				handle_commands(commands, number_of_commands);
 			}
 			else{
-				signal(SIGCHLD, SIG_IGN);
-				printf("PID: %d\n", child);
+				printf("PID: %d\n", child+1);
+			}
+		}
+		else{
+			signal(SIGCHLD, sigchld_handler);
+			pid_t child = fork();
+			if(child == 0){
+				handle_commands(commands, number_of_commands);
+			}
+			else{
+				int status = 0;
+				int wpid = waitpid(child, &status, 0);
 			}
 		}
 		
 		//free memory before allocating it again
-		for(int i = 0; i < number_of_words; ++i){
-			free(words[i]);
-		}
-		free(words);
-		
 		free_commands(commands, number_of_commands);
 	}
 	
