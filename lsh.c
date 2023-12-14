@@ -32,11 +32,11 @@ void sigint_handler();
 void sigchld_handler();
 
 //built in functions
-void handle_cd(struct Commands*commands);
-void handle_exit(struct Commands*commands);
+int handle_cd(struct Commands*commands);
+int handle_exit(struct Commands*commands);
 
 char*built_in_functions_keys[] = {"cd", "exit"};
-void(*built_in_functions[])(struct Commands*) = {&handle_cd, &handle_exit};
+int(*built_in_functions[])(struct Commands*) = {&handle_cd, &handle_exit};
 
 
 
@@ -45,7 +45,7 @@ void sigint_handler(){
 }
 
 void sigchld_handler(){
-	waitpid(-1, NULL, WNOHANG);
+	while(waitpid(-1, NULL, WNOHANG) > 0);
 }
 
 
@@ -88,6 +88,12 @@ int read_line(char**line){
 		}
 	}
 	(*line)[position] = '\0';
+	
+	if(c == EOF){
+		printf("\nexit.\n");
+		free(*line);
+		exit(EXIT_SUCCESS);
+	}
 
 	return buffer_size;
 }
@@ -230,6 +236,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 			free(commands->command[i-1]);
 			free(commands->command[i-2]);
 			commands->command[i-2] = NULL;
+			break;
 		}
 		++index;
 	}
@@ -260,6 +267,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 			free(commands->command[i-1]);
 			free(commands->command[i-2]);
 			commands->command[i-2] = NULL;
+			break;
 		}
 		else if(strcmp(commands->command[index], "2>") == 0){
 			//copy file after > to paths[2]
@@ -278,6 +286,7 @@ void redirect_command(struct Commands*commands, int number_of_commands, char*pat
 			free(commands->command[i-1]);
 			free(commands->command[i-2]);
 			commands->command[i-2] = NULL;
+			break;
 		}
 		++index;
 	}
@@ -305,30 +314,52 @@ void free_commands(struct Commands*commands, const int number_of_commands){
 	}
 }
 
-void handle_cd(struct Commands*commands){
+int handle_cd(struct Commands*commands){
+	//handle cd built in function
+	
 	if(commands->command[1] == NULL){
-		printf("enter proper path\n");
+		printf("enter path\n");
+		return -1;
 	}
 	else{
+		if(commands->command[2] != NULL){
+			printf("too many argumentz\n");
+			return -1;
+		}
 		if(chdir(commands->command[1]) > 0){
 			perror("cd problem");
 		}
+//		free_commands(commands, 1);
 	}
+	return 1;
 }
 
-void handle_exit(struct Commands*commands){
+int handle_exit(struct Commands*commands){
+	//handle exit built in function
+	
 	free_commands(commands, 1);
-	exit(0);
+	printf("exit\n");
+	exit(EXIT_SUCCESS);
+	return 1;
 }
 
-void handle_built_in_functions(struct Commands*commands){
+int handle_built_in_functions(struct Commands*commands){
+	//handles built in functions
+	//input:
+	//	commands (struct Commands*) - commands
+	//output:
+	//	1 if built in function was executed with success
+	//	-1 if built in function was executed without success
+	//	0 if there was no built in function to execute
+	
 	int functions_count = (sizeof(built_in_functions_keys) / sizeof(char *));
 
 	for(int i = 0; i < functions_count; ++i){
 		if(strcmp(commands->command[0], built_in_functions_keys[i]) == 0){
-			(*built_in_functions[i])(commands);
+			return (*built_in_functions[i])(commands);
 		}
 	}
+	return 0;
 }
 
 void handle_commands(struct Commands*commands, int number_of_commands){
@@ -356,28 +387,25 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	redirect_command(commands, number_of_commands, paths);
 	
 	//create fds for new files if redirecting
-	//<
+	//< redirection
 	if(paths[0] != NULL){
-		int new_input_fd = open(paths[0], O_RDWR | O_CREAT);
+		int new_input_fd = open(paths[0], O_RDONLY | O_CREAT);
 		dup2(new_input_fd, fd_temp_in);	
 		close(new_input_fd);
 	}
-	//>
+	//> redirection
 	if(paths[1] != NULL){
-		int new_output_fd = open(paths[1], O_RDWR | O_CREAT | O_TRUNC);
+		//now only open output file, it will be truncated later
+		int new_output_fd = open(paths[1], O_RDWR | O_CREAT);
 		dup2(new_output_fd, fd_redirected_output);
 		close(new_output_fd);
 	}
-	//2>
+	//2> redirection
 	if(paths[2] != NULL){
 		int new_output_err_fd = open(paths[2], O_RDWR | O_CREAT | O_TRUNC);
 		dup2(new_output_err_fd, 2);
 		close(new_output_err_fd);
 	}
-	
-	free(paths[0]);
-	free(paths[1]);
-	free(paths[2]);
 	
 	//handle pipes
 	//first command's input is either set to terminal or proper file if redirected
@@ -388,6 +416,10 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 		
 		//last command? yes -> output goes to terminal or to the proper file if redirected
 		if(i == number_of_commands - 1){
+			//if output was redirected to the same file as input then clear the file
+			if(paths[0] != NULL && paths[0] == paths[1]){
+				int truncate_redirect = open(paths[1], O_TRUNC);
+			}
 			fd_temp_out = dup(fd_redirected_output);
 		}
 		
@@ -406,9 +438,8 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 				close(commands->fd[1]);
 			}
 			
-			
 			execvp(commands->command[0], commands->command);
-			perror("unknown command");
+			perror("exec err");
 			exit(EXIT_FAILURE);
 		}
 		wait(NULL);
@@ -418,6 +449,10 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 		}
 	}
 	
+	free(paths[0]);
+	free(paths[1]);
+	free(paths[2]);
+	
 	dup2(fd_terminal_input, 0);
 	
 	close(fd_terminal_input);
@@ -426,8 +461,6 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	close(fd_redirected_output);
 	exit(0);
 }
-
-
 
 void lsh_loop(){
 	//main loop
@@ -445,6 +478,7 @@ void lsh_loop(){
 	signal(SIGCHLD, sigchld_handler);
 	
 	while(1){
+		signal(SIGINT, sigint_handler);
 		//read line
 		path_max = read_line(&line);
 		
@@ -467,14 +501,21 @@ void lsh_loop(){
 		
 		//handle commands
 		//handle built in functions
-		handle_built_in_functions(commands);
+		if(handle_built_in_functions(commands)){
+			free_commands(commands, number_of_commands);
+			continue;
+		}
+		else if(handle_built_in_functions(commands) == -1){
+			free_commands(commands, number_of_commands);
+		}
 		
 		//handle &
 		should_wait = handle_process_in_background(commands, number_of_commands);
 		
 		//handle pipes
 		if(!should_wait){
-			signal(SIGCHLD, SIG_IGN);		
+		//if process should run in background redirect output to null and ignore signals from child
+			signal(SIGCHLD, SIG_IGN);
 			pid_t child = fork();
 			if(child == 0){
 				int fd_null = open("/dev/null", O_WRONLY);
@@ -487,6 +528,7 @@ void lsh_loop(){
 			}
 		}
 		else{
+		//otherwise wait for child process to end
 			signal(SIGCHLD, sigchld_handler);
 			pid_t child = fork();
 			if(child == 0){
