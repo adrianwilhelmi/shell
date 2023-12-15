@@ -26,7 +26,7 @@ int parse_words_into_commands(struct Commands*commands, char**words, const int n
 int handle_process_in_background(struct Commands*commands, int number_of_commands);
 void redirect_command(struct Commands*commands, int number_of_commands, char*paths[3]);
 void free_commands(struct Commands*commands, int number_of_commands);
-void handle_commands(struct Commands*commands, int number_of_commands);
+void handle_commands(struct Commands*commands, int number_of_commands, int should_wait);
 void lsh_loop();
 void sigint_handler();
 void sigchld_handler();
@@ -326,10 +326,9 @@ int handle_cd(struct Commands*commands){
 			printf("too many argumentz\n");
 			return -1;
 		}
-		if(chdir(commands->command[1]) > 0){
-			perror("cd problem");
+		if(chdir(commands->command[1]) != 0){
+			perror("cd");
 		}
-//		free_commands(commands, 1);
 	}
 	return 1;
 }
@@ -362,7 +361,7 @@ int handle_built_in_functions(struct Commands*commands){
 	return 0;
 }
 
-void handle_commands(struct Commands*commands, int number_of_commands){
+void handle_commands(struct Commands*commands, int number_of_commands, int should_wait){
 	//handles commands from the input line
 	//input:
 	//	commands (struct Commands*) - commands to handle
@@ -371,7 +370,17 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	//					if true output is set to 
 	
 	int fd_terminal_input = dup(0);			//terminal input
-	int fd_terminal_output = dup(1);			//terminal input
+	int fd_terminal_output = dup(1);			//terminal output
+	
+	signal(SIGCHLD, sigchld_handler);
+	if(!should_wait){
+		//if process should run in background redirect standard output to null and ignore signals from child
+		int fd_null = open("/dev/null", O_WRONLY);
+		dup2(fd_null, 1);
+		close(fd_null);
+		
+		signal(SIGCHLD, SIG_IGN);
+	}
 	
 	int fd_redirected_output = dup(1);			//if not redirected its same as terminal outut, input wont be needed
 	
@@ -396,7 +405,7 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	//> redirection
 	if(paths[1] != NULL){
 		//now only open output file, it will be truncated later
-		int new_output_fd = open(paths[1], O_RDWR | O_CREAT);
+		int new_output_fd = open(paths[1], O_WRONLY | O_CREAT);
 		dup2(new_output_fd, fd_redirected_output);
 		close(new_output_fd);
 	}
@@ -413,16 +422,17 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	for(int i = 0; i < number_of_commands; ++i){
 		dup2(fd_temp_in, 0);
 		close(fd_temp_in);
-		
+
 		//last command? yes -> output goes to terminal or to the proper file if redirected
 		if(i == number_of_commands - 1){
 			//if output was redirected to the same file as input then clear the file
-			if(paths[0] != NULL){
+			if(paths[1]){
 				int truncate_redirect = open(paths[1], O_TRUNC);
+				close(truncate_redirect);
 			}
+			
 			fd_temp_out = dup(fd_redirected_output);
 		}
-		
 		else{
 			pipe(commands->fd);
 			fd_temp_out = commands->fd[1];
@@ -437,13 +447,23 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 				close(commands->fd[0]);
 				close(commands->fd[1]);
 			}
-			
 			execvp(commands->command[0], commands->command);
 			perror("exec err");
 			exit(EXIT_FAILURE);
 		}
-		wait(NULL);
-
+		else{
+			if(!should_wait){
+				//if process runs in background we want to get it's pid on the screen but the current standard output points somewhere else
+				//so change standard output to terminal for a sec
+				dup2(fd_terminal_output, 1);
+				printf("PID: %d\n", pid);
+				
+			}
+			else{
+				int status = 0;
+				int wpid = waitpid(pid, &status, 0);
+			}
+		}
 		if(i != number_of_commands -1){
 			commands = commands->next;
 		}
@@ -452,14 +472,14 @@ void handle_commands(struct Commands*commands, int number_of_commands){
 	free(paths[0]);
 	free(paths[1]);
 	free(paths[2]);
-	
+
 	dup2(fd_terminal_input, 0);
+	dup2(fd_terminal_output, 1);
 	
 	close(fd_terminal_input);
 	close(fd_terminal_output);
 	
 	close(fd_redirected_output);
-	exit(0);
 }
 
 void lsh_loop(){
@@ -478,7 +498,6 @@ void lsh_loop(){
 	signal(SIGCHLD, sigchld_handler);
 	
 	while(1){
-		signal(SIGINT, sigint_handler);
 		//read line
 		path_max = read_line(&line);
 		
@@ -507,38 +526,15 @@ void lsh_loop(){
 		}
 		else if(handle_built_in_functions(commands) == -1){
 			free_commands(commands, number_of_commands);
+			printf("err executing command\n");
+			continue;
 		}
 		
-		//handle &
+		//handle & (set the flag if we should wait)
 		should_wait = handle_process_in_background(commands, number_of_commands);
 		
-		//handle pipes
-		if(!should_wait){
-		//if process should run in background redirect output to null and ignore signals from child
-			signal(SIGCHLD, SIG_IGN);
-			pid_t child = fork();
-			if(child == 0){
-				int fd_null = open("/dev/null", O_WRONLY);
-				dup2(fd_null, 1);
-				close(fd_null);
-				handle_commands(commands, number_of_commands);
-			}
-			else{
-				printf("PID: %d\n", child+1);
-			}
-		}
-		else{
-		//otherwise wait for child process to end
-			signal(SIGCHLD, sigchld_handler);
-			pid_t child = fork();
-			if(child == 0){
-				handle_commands(commands, number_of_commands);
-			}
-			else{
-				int status = 0;
-				int wpid = waitpid(child, &status, 0);
-			}
-		}
+		//handle pipes	and redirections
+		handle_commands(commands, number_of_commands, should_wait);
 		
 		//free memory before allocating it again
 		free_commands(commands, number_of_commands);
