@@ -1,5 +1,5 @@
-#ifndef LSH_TERMINAL_H
-#define LSH_TERMINAL_H
+#ifndef __LSH_TERMINAL_H__
+#define __LSH_TERMINAL_H__
 
 #include<sys/types.h>
 #include<termios.h>

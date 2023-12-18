@@ -1,5 +1,5 @@
-#ifndef LSH_COMMAND_H
-#define LSH_COMMAND_H
+#ifndef __LSH_COMMAND_H__
+#define __LSH_COMMAND_H__
 
 #include<stdlib.h>
 
@@ -22,6 +22,5 @@ void free_commands(Command*commands, int number_of_commands);
 int parse_words_into_commands(Command*commands, char*words[], const int number_of_words);
 void handle_command(Command*commands, int input_file, int output_file, 
 				int output_err_file, int group_pid, int background);
-
 
 #endif

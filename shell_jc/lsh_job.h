@@ -1,5 +1,5 @@
-#ifndef LSH_JOB_H
-#define LSH_JOB_H
+#ifndef __LSH_JOB_H__
+#define __LSH_JOB_H__
 
 #include<termios.h>
 
