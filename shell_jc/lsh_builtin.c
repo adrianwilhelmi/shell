@@ -9,12 +9,12 @@ int handle_cd(Command*command){
 	
 	if(command->command[1] == NULL){
 		printf("enter path\n");
-		return -1;
+		return 1;
 	}
 	else{
 		if(command->command[2] != NULL){
 			printf("too many argumentz\n");
-			return -1;
+			return 1;
 		}
 		if(chdir(command->command[1]) != 0){
 			perror("cd");

@@ -19,7 +19,6 @@ pid_t shell_pgid;
 struct termios shell_terminal_modes;
 int shell_terminal;
 Job*first_job;	
-Job*current_job;
 
 //used to handle &, initially we wait 
 int background = 0;
@@ -52,8 +51,7 @@ int handle_built_in_functions(Command*command){
 	//input:
 	//	commands (Command*) - commands
 	//output:
-	//	1 if built in function was executed with success
-	//	-1 if built in function was executed without success
+	//	1 if built in function was executed
 	//	0 if there was no built in function to execute
 	
 	int functions_count = (sizeof(built_in_functions_keys) / sizeof(char *));
@@ -69,9 +67,6 @@ int handle_built_in_functions(Command*command){
 void lsh_loop(){
 	//main loop
 	
-//	char*line;
-//	char**words;
-
 	Job*current_job;
 	
 	Command*commands;
@@ -109,11 +104,8 @@ void lsh_loop(){
 		
 		//handle built in functions
 		int builtin_status = handle_built_in_functions(commands);
-		if(builtin_status != 0){
+		if(builtin_status){
 			free_commands(commands, number_of_commands);
-			if(builtin_status == -1){
-				printf("err executing command\n");
-			}
 			continue;
 		}
 		
@@ -125,7 +117,6 @@ void lsh_loop(){
 		
 		//set the job queue
 		if(first_job == NULL){
-			printf("first job = nul\n");
 			first_job = current_job;
 		}
 		else{
@@ -137,11 +128,8 @@ void lsh_loop(){
 		}
 		
 		handle_job(current_job, background);
-
 		
 		print_job_info();
-		printf("wyszlo\n");
-		
 	}
 }
 

@@ -98,7 +98,7 @@ void put_job_in_foreground(Job*job, int cont){
 	signal(SIGCHLD, SIG_DFL);
 	wait_for_job(job);
 	signal(SIGCHLD, SIG_IGN);
-	
+		
 	//put shell back into foreground
 	tcsetpgrp(shell_terminal, shell_pgid);
 	
