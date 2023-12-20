@@ -127,8 +127,13 @@ void lsh_loop(){
 			last_job->next = current_job;
 		}
 		
+		//run the job
 		handle_job(current_job, background);
 		
+		//remove terminated jobs from the queue
+		update_job_queue();
+		
+		//print info about jobs (running, stopped, done)
 		print_job_info();
 	}
 }

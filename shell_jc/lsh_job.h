@@ -34,5 +34,6 @@ void print_job_info();
 void continue_job(Job*job, int background);
 void set_redirects(Job*job);
 void handle_job(Job*job, int background);
+void update_job_queue();
 
 #endif

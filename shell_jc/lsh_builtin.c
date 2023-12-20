@@ -50,30 +50,6 @@ int handle_bg(Command*command){
 	return 1;
 }
 int handle_jobs(Command*command){
-	
-	signal(SIGCHLD, SIG_DFL);
-	update_status();
-	signal(SIGCHLD, SIG_IGN);
-	
-	Job*job;
-	int counter = 1;
-	for(job = first_job; job != NULL; job = job->next){
-		printf("[%d]: ", counter);
-		counter++;
-		if(is_completed(job)){
-			printf("Done ");
-		}
-		else if(is_stopped(job)){
-			printf("Stopped ");
-		}
-		else{
-			printf("Running ");
-		}
-		for(int i = 0; i < job->number_of_commands; ++i){
-			printf("%s ",job->commands->command[i]);
-		}
-		printf("\n");
-	}
-	
+	print_job_info();
 	return 1;
 }

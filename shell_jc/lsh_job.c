@@ -98,7 +98,7 @@ void put_job_in_foreground(Job*job, int cont){
 	signal(SIGCHLD, SIG_DFL);
 	wait_for_job(job);
 	signal(SIGCHLD, SIG_IGN);
-		
+	
 	//put shell back into foreground
 	tcsetpgrp(shell_terminal, shell_pgid);
 	
@@ -182,13 +182,13 @@ void wait_for_job(Job*job){
 	}while(!is_stopped(job) && !is_completed(job));
 }
 
-void print_job_info(){
+void update_job_queue(){
+	//TODO: implement
 	Job*job;
 	Job*job_last;
 	Job*job_next;
 	Command*command;
 	
-	//update status info for child processes
 	signal(SIGCHLD, SIG_DFL);
 	update_status();
 	signal(SIGCHLD, SIG_DFL);
@@ -196,9 +196,8 @@ void print_job_info(){
 	job_last = NULL;
 	for(job = first_job; job != NULL; job = job_next){
 		job_next = job->next;
-
+		
 		if(is_completed(job)){
-			printf("job %d has completed\n", job->pgid);			
 			if(job_last != NULL){
 				job_last->next = job->next;
 			}
@@ -207,14 +206,46 @@ void print_job_info(){
 			}
 			free_job(job);
 		}
-		else if(is_stopped(job) && !job->notified){
+/*		else if(is_stopped(job) && !job->notified){
 			printf("job %d has stopped\n", job->pgid);
 			job->notified = 1;
 			job_last = job;
 		}
-		else{
+*/		else{
 			job_last = job;
 		}	
+	}
+}
+
+void print_job_info(){
+	Job*job;
+	Job*job_last;
+	Job*job_next;
+	Command*command;
+	
+	//update status info for child processes
+	/*
+	signal(SIGCHLD, SIG_DFL);
+	update_status();
+	signal(SIGCHLD, SIG_IGN);
+	*/
+	int counter = 1;
+	for(job = first_job; job != NULL; job = job->next){
+		printf("[%d]: ", counter);
+		counter++;
+		if(is_completed(job)){
+			printf("Done ");
+		}
+		else if(is_stopped(job)){
+			printf("Stopped ");
+		}
+		else{
+			printf("Running ");
+		}
+		for(int i = 0; i < job->number_of_commands; ++i){
+			printf("%s ",job->commands->command[i]);
+		}
+		printf("\n");
 	}
 }
 
