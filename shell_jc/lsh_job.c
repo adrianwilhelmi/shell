@@ -136,7 +136,7 @@ int check_process_status(pid_t pid, int status){
 					else {
 						command->completed = 1;
 						if(WIFSIGNALED(status)){
-							printf("%d: terminated by signal %d.\n", (int) pid, WTERMSIG(command->status));
+							printf("\nprocess %d: terminated by signal %d.\n", (int) pid, WTERMSIG(command->status));
 						}
 					}
 					return 0;
@@ -183,7 +183,8 @@ void wait_for_job(Job*job){
 }
 
 void update_job_queue(){
-	//TODO: implement
+	//removes terminated jobs from the list
+	
 	Job*job;
 	Job*job_last;
 	Job*job_next;
@@ -206,12 +207,7 @@ void update_job_queue(){
 			}
 			free_job(job);
 		}
-/*		else if(is_stopped(job) && !job->notified){
-			printf("job %d has stopped\n", job->pgid);
-			job->notified = 1;
-			job_last = job;
-		}
-*/		else{
+		else{
 			job_last = job;
 		}	
 	}
@@ -242,8 +238,14 @@ void print_job_info(){
 		else{
 			printf("Running ");
 		}
+		command = job->commands;
 		for(int i = 0; i < job->number_of_commands; ++i){
-			printf("%s ",job->commands->command[i]);
+			int k = 0;
+			while(command->command[k] != NULL){
+				printf("%s ",job->commands->command[k]);
+				k++;
+			}
+			command = command->next;
 		}
 		printf("\n");
 	}
@@ -275,7 +277,7 @@ void set_redirects(Job*job){
 	//	paths[3] (char*) - array containing paths for redirection
 	//		paths[0] - path to input
 	//		paths[1] - path to output
-	//		paths[3] - path to error output
+	//		paths[2] - path to error output
 
 	int index = 0;
 	

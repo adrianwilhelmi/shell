@@ -51,5 +51,6 @@ int handle_bg(Command*command){
 }
 int handle_jobs(Command*command){
 	print_job_info();
+	update_job_queue();
 	return 1;
 }
