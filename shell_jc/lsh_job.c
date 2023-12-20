@@ -4,6 +4,7 @@
 #include<string.h>
 #include<fcntl.h>
 #include<sys/wait.h>
+#include<errno.h>
 
 #include"lsh_terminal.h"
 #include"lsh_command.h"
@@ -19,16 +20,71 @@ void initialize_job(Job*job){
 	job->next = NULL;
 }
 
+void free_job(Job*job){
+	if(job == NULL){
+		return;
+	}
+	
+	free_commands(job->commands, job->number_of_commands);
+	if(job->paths[0] != NULL){ 
+		free(job->paths[0]);
+	}
+	if(job->paths[1] != NULL){ 
+		free(job->paths[1]);
+	}
+	if(job->paths[2] != NULL){ 
+		free(job->paths[2]);
+	}
+	free(job);
+}
+
+int is_stopped(Job*job){
+	//checks if job is either running (0) or stopped (1)
+	
+	Command*command;
+	command = job->commands;
+	for(int i = 0; i < job->number_of_commands; ++i){
+		if(!command->completed && !command->stopped){
+			return 0;
+		}
+	}
+	return 1;
+}
+
+int is_completed(Job*job){
+	//checks if job is either running (or stopped) (0) or completed (1)
+	
+	Command*command;
+	command = job->commands;
+	for(int i = 0; i < job->number_of_commands; ++i){
+		if(!command->completed){
+			return 0;
+		}
+	}
+	return 1;
+}
+
 void put_job_in_background(Job*job, int cont){
+	//shell has control over terminal
+	//continue job if cont is true
+	
+	signal(SIGCONT, SIG_DFL);
+	
 	if(cont){
 		if(kill(-job->pgid, SIGCONT) < 0){
 			perror("job continuation");
 		}
 	}
+	
+	tcgetattr(shell_terminal, &job->tmodes);
+	
+	signal(SIGCONT, SIG_IGN);
 }
 
 void put_job_in_foreground(Job*job, int cont){
 	//job takes control over terminal
+	//continue job if cont is true
+	
 	tcsetpgrp(shell_terminal, job->pgid);
 	if(cont){
 		tcsetattr(shell_terminal, TCSADRAIN, &job->tmodes);
@@ -37,8 +93,11 @@ void put_job_in_foreground(Job*job, int cont){
 		}
 	}
 	
-	//wait for job to finish
-//	wait_for_job(job);
+	//ait for job to finish
+	//listen to signals from child so we can report
+	signal(SIGCHLD, SIG_DFL);
+	wait_for_job(job);
+	signal(SIGCHLD, SIG_IGN);
 	
 	//put shell back into foreground
 	tcsetpgrp(shell_terminal, shell_pgid);
@@ -46,6 +105,134 @@ void put_job_in_foreground(Job*job, int cont){
 	//get shell's terminal modes from backup
 	tcgetattr(shell_terminal, &job->tmodes);
 	tcsetattr(shell_terminal, TCSADRAIN, &shell_terminal_modes);
+}
+
+int check_process_status(pid_t pid, int status){
+	//checks if status of a process with given pid has changed
+	//searches through jobs and if process with given pid was found:
+	//	checks if process was stopped with WIFSTOPPED and updates flag
+	//	checks if process was terminated due to a signal with WIFSIGNALED and updates flag
+	//input:
+	//	first_job (Job*) - pointer to first job
+	//	pid (pid_t) - pid of process we want to check
+	//	status (int) - status returned by waitpid();
+	//output:
+	//	0 if process' status has changed
+	//	-1 otherwise
+	
+	Job*job;
+	Command*command;
+	
+	
+	if(pid > 0){
+		for(job = first_job; job != NULL; job = job->next){
+			command = job->commands;
+			for(int i = 0; i < job->number_of_commands; ++i){
+				if(command->pid == pid){
+					command->status = status;
+					if(WIFSTOPPED(status)){
+						command->stopped = 1;
+					}
+					else {
+						command->completed = 1;
+						if(WIFSIGNALED(status)){
+							printf("%d: terminated by signal %d.\n", (int) pid, WTERMSIG(command->status));
+						}
+					}
+					return 0;
+				}
+				
+				command = command->next;
+			}
+		}
+		return -1;
+	}
+	
+	else if(pid == 0 || errno == ECHILD){
+		//errno = ECHILD means theres no child processes
+		return -1;
+	}
+	else{
+		perror("waitpid");
+		return -1;
+	}
+
+}
+
+void update_status(){
+	//check if any process changed it's status
+	int status;
+	pid_t pid;
+	
+	do{
+		pid = waitpid(WAIT_ANY, &status, WUNTRACED|WNOHANG);
+	}while(!check_process_status(pid, status));
+}
+
+void wait_for_job(Job*job){
+	//wait for job untill it either stops or completes
+	int status;
+	pid_t pid;
+	 
+	do{
+		pid = waitpid(WAIT_ANY, &status, WUNTRACED);
+		if(pid > 0){
+			check_process_status(pid, status);
+		}
+	}while(!is_stopped(job) && !is_completed(job));
+}
+
+void print_job_info(){
+	Job*job;
+	Job*job_last;
+	Job*job_next;
+	Command*command;
+	
+	//update status info for child processes
+	signal(SIGCHLD, SIG_DFL);
+	update_status();
+	signal(SIGCHLD, SIG_DFL);
+	
+	job_last = NULL;
+	for(job = first_job; job != NULL; job = job_next){
+		job_next = job->next;
+
+		if(is_completed(job)){
+			printf("job %d has completed\n", job->pgid);			
+			if(job_last != NULL){
+				job_last->next = job->next;
+			}
+			else{
+				first_job = job_next;
+			}
+			free_job(job);
+		}
+		else if(is_stopped(job) && !job->notified){
+			printf("job %d has stopped\n", job->pgid);
+			job->notified = 1;
+			job_last = job;
+		}
+		else{
+			job_last = job;
+		}	
+	}
+}
+
+void continue_job(Job*job, int background){	
+	//set flags as appropriate
+	Command*command = job->commands;
+	for(int i = 0; i < job->number_of_commands; ++i){
+		command->stopped = 0;
+	}
+	job->notified = 0;
+	
+	//actually run the job
+	if(background){
+		put_job_in_background(job, 1);
+	}
+	else{
+		put_job_in_foreground(job, 1);
+	}
 }
 
 void set_redirects(Job*job){
@@ -62,7 +249,6 @@ void set_redirects(Job*job){
 	int index = 0;
 	
 	Command*commands = job->commands;
-	
 	
 	//only first command can redirect input
 	while(commands->command[index+1] != NULL){
@@ -141,7 +327,6 @@ void set_redirects(Job*job){
 
 
 void handle_job(Job*job, int background){
-	
 	//backup terminal input and output
 	int fd_terminal_input = dup(STDIN_FILENO);			//terminal input
 	int fd_terminal_output = dup(STDOUT_FILENO);			//terminal output
@@ -176,12 +361,14 @@ void handle_job(Job*job, int background){
 		close(new_output_err_fd);
 	}
 	
+	
 	Command*current_command = job->commands;
 	int pipe_fds[2];
 	pid_t pid;
 	for(int i = 0; i < job->number_of_commands; ++i){
-		if(i == job->number_of_commands -1){
+		if(i == job->number_of_commands -1){	
 			if(job->paths[1]){
+				//need to clear the > redirect file before writing to it
 				int truncate_redirect = open(job->paths[1], O_TRUNC);
 				close(truncate_redirect);
 			}
@@ -206,30 +393,28 @@ void handle_job(Job*job, int background){
 		}
 		else{
 			//pa
+			current_command->completed = 0;
+			current_command->stopped = 0;
 			current_command->pid = pid;
 			//set this group's pid as this process' pid if its the first process
 			if(job->pgid == 0){
-				job->pgid = current_command->pid;
+				job->pgid = pid;
 			}
 			setpgid(pid, job->pgid);
-			
-			int status;
-			waitpid(pid, &status, 0);
+			job->notified = 0;
 		}
+
 		close(fd_temp_out);
 		close(fd_temp_in);
 		fd_temp_in = pipe_fds[0];
 		current_command = current_command -> next;
 	}
 	
-//TODO:
-//	wait_for_job(job);
-	printf("background, %d\n", background);
-	if(background){
-		put_job_in_background(job, 0);
-	}
-	else{
+	if(!background){
 		put_job_in_foreground(job, 0);
+	}
+	else if (background){
+		put_job_in_background(job, 0);
 	}
 }
 

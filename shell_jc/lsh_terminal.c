@@ -7,10 +7,6 @@
 #include<unistd.h>
 #include<stdio.h>
 
-pid_t shell_pgid;
-struct termios shell_terminal_modes;
-int shell_terminal;
-
 void shell_initialization(){
 	//initialize shell
 	shell_terminal = STDIN_FILENO;

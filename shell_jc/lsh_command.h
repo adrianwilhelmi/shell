@@ -11,11 +11,9 @@ typedef struct Command{
 	char**command;			//command in a form of array of strings, each array field containing one word
 	pid_t pid;			//command's id
 	int status;			//status reported from waitpid
-	char completed;		//'1' if process has completed, '0' othersie
-	char stopped;			//'1' if process has stopped, '0' otherwise
+	int completed;			//'1' if process has completed, '0' othersie
+	int stopped;			//'1' if process has stopped, '0' otherwise
 	struct Command*next;	//pointer to the next command
-	
-	int fd[2];			//pipe descriptors
 } Command;
 
 void free_commands(Command*commands, int number_of_commands);

@@ -6,9 +6,10 @@
 
 #include"lsh_command.h"
 #include"lsh_terminal.h"
+#include"lsh_job.h"
 
 void free_commands(Command*commands, const int number_of_commands){
-	//cleans memory after commands are executed
+	//cleans memory when job is terminated
 	//input:
 	//	commands (Command*) - commands to be freed
 	//	number_of_commands (int) - number of command
@@ -112,6 +113,7 @@ void handle_command(Command*command, int input_file, int output_file, int output
 		close(output_err_file);
 	}
 	
+//	printf("current_command->pid: %d\n", command->pid);
 	execvp(command->command[0], command->command);
 	perror("command err");
 	exit(EXIT_FAILURE);
