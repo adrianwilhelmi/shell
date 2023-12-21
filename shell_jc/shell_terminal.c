@@ -1,11 +1,11 @@
-#include"shell_terminal.h"
-
 #include<sys/types.h>
 #include<termios.h>
 #include<signal.h>
 #include<stdlib.h>
 #include<unistd.h>
 #include<stdio.h>
+
+#include"shell_terminal.h"
 
 void shell_initialization(){
 	//initialize shell
@@ -38,4 +38,14 @@ void shell_initialization(){
 
 	//save terminal attributes
 	tcgetattr(shell_terminal, &shell_terminal_modes);
+}
+
+void enable_raw_mode(){
+	struct termios raw = shell_terminal_modes;
+	raw.c_lflag &= ~(ECHO | ICANON);
+	tcsetattr(shell_terminal, TCSAFLUSH, &raw);
+}
+
+void disable_raw_mode(){
+	tcsetattr(shell_terminal, TCSAFLUSH, &shell_terminal_modes);
 }

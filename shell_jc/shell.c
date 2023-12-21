@@ -13,6 +13,8 @@
 #include"shell_command.h"
 #include"shell_job.h"
 #include"shell_builtin.h"
+#include"shell_sgrep.h"
+#include"shell_history.h"
 
 //global variables
 pid_t shell_pgid;
@@ -23,9 +25,13 @@ Job*first_job;
 //used to handle &, initially we wait 
 int background = 0;
 
+//history variables
+CHistory*command_history;
+Command*command_history_curr;
+
 //built in functions
-char*built_in_functions_keys[] = {"cd", "exit", "fg", "bg", "jobs"};
-int(*built_in_functions[])(Command*command) = {handle_cd, handle_exit, handle_fg, handle_bg, handle_jobs};
+char*built_in_functions_keys[] = {"cd", "exit", "fg", "bg", "jobs", "sgrep"};
+int(*built_in_functions[])(Command*command) = {handle_cd, handle_exit, handle_fg, handle_bg, handle_jobs, sgrep};
 
 int initialize_background(char*words[], int number_of_words){
 	//initializes the flag if process should be handled in background (dependent on &)

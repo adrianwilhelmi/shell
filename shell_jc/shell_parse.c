@@ -1,6 +1,6 @@
-#include"shell_parse.h"
-
 #include<string.h>
+
+#include"shell_parse.h"
 
 int read_line(char**line){
 	//prints current directory and parses input from terminal to *line
