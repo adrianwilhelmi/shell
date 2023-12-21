@@ -11,6 +11,8 @@
 #include"lsh_job.h"
 
 void initialize_job(Job*job){
+	//initializez the job so it's ready to be used
+	
 	job->commands = NULL;
 	job->number_of_commands = 0;
 	job->pgid = 0;
@@ -21,6 +23,8 @@ void initialize_job(Job*job){
 }
 
 void free_job(Job*job){
+	//cleans the memory
+	
 	if(job == NULL){
 		return;
 	}
@@ -52,7 +56,7 @@ int is_stopped(Job*job){
 }
 
 int is_completed(Job*job){
-	//checks if job is either running (or stopped) (0) or completed (1)
+	//checks if job is either completed (1) or running/stopped (0)
 	
 	Command*command;
 	command = job->commands;
@@ -108,16 +112,15 @@ void put_job_in_foreground(Job*job, int cont){
 }
 
 int check_process_status(pid_t pid, int status){
-	//checks if status of a process with given pid has changed
+	//updates status of the process with given pid
 	//searches through jobs and if process with given pid was found:
 	//	checks if process was stopped with WIFSTOPPED and updates flag
 	//	checks if process was terminated due to a signal with WIFSIGNALED and updates flag
 	//input:
-	//	first_job (Job*) - pointer to first job
 	//	pid (pid_t) - pid of process we want to check
 	//	status (int) - status returned by waitpid();
 	//output:
-	//	0 if process' status has changed
+	//	0 if process was found and status was changed properly
 	//	-1 otherwise
 	
 	Job*job;
@@ -136,18 +139,16 @@ int check_process_status(pid_t pid, int status){
 					else {
 						command->completed = 1;
 						if(WIFSIGNALED(status)){
-							printf("\nprocess %d: terminated by signal %d.\n", (int) pid, WTERMSIG(command->status));
+							printf("process %d: terminated by signal %d.\n", (int) pid, WTERMSIG(command->status));
 						}
 					}
 					return 0;
 				}
-				
 				command = command->next;
 			}
 		}
 		return -1;
 	}
-	
 	else if(pid == 0 || errno == ECHILD){
 		//errno = ECHILD means theres no child processes
 		return -1;
@@ -161,6 +162,7 @@ int check_process_status(pid_t pid, int status){
 
 void update_status(){
 	//check if any process changed it's status
+	
 	int status;
 	pid_t pid;
 	
@@ -171,6 +173,7 @@ void update_status(){
 
 void wait_for_job(Job*job){
 	//wait for job untill it either stops or completes
+	
 	int status;
 	pid_t pid;
 	 
@@ -214,11 +217,14 @@ void update_job_queue(){
 }
 
 void print_job_info(){
+	//prints info about recent job statuses - if job was stopped, done, or is it running
+	
 	Job*job;
 	Job*job_last;
 	Job*job_next;
 	Command*command;
 	
+	update_job_queue();
 	//update status info for child processes
 	/*
 	signal(SIGCHLD, SIG_DFL);
@@ -252,11 +258,15 @@ void print_job_info(){
 }
 
 void continue_job(Job*job, int background){	
-	//set flags as appropriate
+	//continue given stopped job 
+	//background flag decides if it should run in background or foreground
+	
+	//set flags as appropriate	
 	Command*command = job->commands;
 	for(int i = 0; i < job->number_of_commands; ++i){
 		command->stopped = 0;
 	}
+	//mark as running
 	job->notified = 0;
 	
 	//actually run the job
@@ -272,12 +282,7 @@ void set_redirects(Job*job){
 	//analyses if theres < in the first command or if theres > or 2> in the last command
 	//if so: redirects input, output or error output to path located in the word after the redirection command
 	//input:
-	//	commands (Command*) - commands
-	//	number_of_commands (int) - number of commands
-	//	paths[3] (char*) - array containing paths for redirection
-	//		paths[0] - path to input
-	//		paths[1] - path to output
-	//		paths[2] - path to error output
+	//	job (Job*) - piped commands that we want to redirect
 
 	int index = 0;
 	
@@ -360,6 +365,9 @@ void set_redirects(Job*job){
 
 
 void handle_job(Job*job, int background){
+	//sets redirections, sets up pipes and launches commands of given job
+	//if background flag is true then processes run in background
+	
 	//backup terminal input and output
 	int fd_terminal_input = dup(STDIN_FILENO);			//terminal input
 	int fd_terminal_output = dup(STDOUT_FILENO);			//terminal output

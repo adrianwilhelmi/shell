@@ -28,16 +28,7 @@ char*built_in_functions_keys[] = {"cd", "exit", "fg", "bg", "jobs"};
 int(*built_in_functions[])(Command*command) = {handle_cd, handle_exit, handle_fg, handle_bg, handle_jobs};
 
 int initialize_background(char*words[], int number_of_words){
-	//decides if job should be handled in background
-	//it depends on if last word is '&'
-	//if so then last word is freed and 1 is returned
-	//input:
-	//	words[] (char*) - pointer to words;
-	//	number_of_words (int) - number of words;
-	//output:
-	//	background (int) = 1 if output should be handled in background
-	//					0 otherwise
-	
+	//initializes the flag if process should be handled in background (dependent on &)
 	if(strcmp(words[number_of_words-1], "&") == 0){
 		free(words[number_of_words-1]);
 		words[number_of_words-1] = NULL;
@@ -68,12 +59,10 @@ void lsh_loop(){
 	//main loop
 	
 	Job*current_job;
-	
 	Command*commands;
 	
 	//local 'PATH_MAX'
 	static int path_max;
-
 	
 	while(1){	
 		//read line
@@ -132,9 +121,6 @@ void lsh_loop(){
 		
 		//remove terminated jobs from the queue
 		update_job_queue();
-		
-		//print info about jobs (running, stopped, done)
-		print_job_info();
 	}
 }
 

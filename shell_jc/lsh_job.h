@@ -31,9 +31,9 @@ int check_process_status(pid_t pid, int status);
 void update_status();
 void wait_for_job(Job*job);
 void print_job_info();
+void update_job_queue();
 void continue_job(Job*job, int background);
 void set_redirects(Job*job);
 void handle_job(Job*job, int background);
-void update_job_queue();
 
 #endif
