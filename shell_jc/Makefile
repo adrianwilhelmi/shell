@@ -1,4 +1,4 @@
 all:
-	gcc -g -o lsh lsh2.c lsh_job.c lsh_command.c lsh_terminal.c lsh_parse.c lsh_builtin.c
+	gcc -g -o shell shell.c shell_job.c shell_command.c shell_terminal.c shell_parse.c shell_builtin.c
 clean:
 	rm shell

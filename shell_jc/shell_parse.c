@@ -1,4 +1,4 @@
-#include"lsh_parse.h"
+#include"shell_parse.h"
 
 #include<string.h>
 
@@ -20,7 +20,7 @@ int read_line(char**line){
 			exit(EXIT_FAILURE);
 		}
 	}
-	printf("lsh: %s> ", cwd);
+	printf("shell: %s> ", cwd);
 	free(cwd);
 	
 	//read line

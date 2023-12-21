@@ -4,9 +4,9 @@
 #include<stdio.h>
 #include<unistd.h>
 
-#include"lsh_command.h"
-#include"lsh_terminal.h"
-#include"lsh_job.h"
+#include"shell_command.h"
+#include"shell_terminal.h"
+#include"shell_job.h"
 
 void free_commands(Command*commands, const int number_of_commands){
 	//cleans memory when job is terminated

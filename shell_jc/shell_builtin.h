@@ -1,7 +1,7 @@
-#ifndef __LSH_BUILTIN_H__
-#define __LSH_BUILTIN_H__
+#ifndef __SHELL_BUILTIN_H__
+#define __SHELL_BUILTIN_H__
 
-#include"lsh_command.h"
+#include"shell_command.h"
 
 extern char*built_in_functions_keys[];
 extern int(*built_in_functions[])(Command*command);

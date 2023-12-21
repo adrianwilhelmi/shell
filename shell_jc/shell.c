@@ -8,11 +8,11 @@
 #include<sys/wait.h>
 #include<fcntl.h>
 
-#include"lsh_terminal.h"
-#include"lsh_parse.h"
-#include"lsh_command.h"
-#include"lsh_job.h"
-#include"lsh_builtin.h"
+#include"shell_terminal.h"
+#include"shell_parse.h"
+#include"shell_command.h"
+#include"shell_job.h"
+#include"shell_builtin.h"
 
 //global variables
 pid_t shell_pgid;
@@ -55,7 +55,7 @@ int handle_built_in_functions(Command*command){
 	return 0;
 }
 
-void lsh_loop(){
+void shell_loop(){
 	//main loop
 	
 	Job*current_job;
@@ -126,6 +126,6 @@ void lsh_loop(){
 
 int main(){
 	shell_initialization();
-	lsh_loop();
+	shell_loop();
 	return 0;
 }

@@ -1,4 +1,3 @@
-
 #include<signal.h>
 #include<stdio.h>
 #include<string.h>
@@ -6,9 +5,9 @@
 #include<sys/wait.h>
 #include<errno.h>
 
-#include"lsh_terminal.h"
-#include"lsh_command.h"
-#include"lsh_job.h"
+#include"shell_terminal.h"
+#include"shell_command.h"
+#include"shell_job.h"
 
 void initialize_job(Job*job){
 	//initializez the job so it's ready to be used

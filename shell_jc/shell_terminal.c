@@ -1,4 +1,4 @@
-#include"lsh_terminal.h"
+#include"shell_terminal.h"
 
 #include<sys/types.h>
 #include<termios.h>

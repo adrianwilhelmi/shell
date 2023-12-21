@@ -1,5 +1,5 @@
-#ifndef __LSH_COMMAND_H__
-#define __LSH_COMMAND_H__
+#ifndef __SHELL_COMMAND_H__
+#define __SHELL_COMMAND_H__
 
 #include<stdlib.h>
 

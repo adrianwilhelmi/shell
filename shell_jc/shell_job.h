@@ -1,10 +1,10 @@
-#ifndef __LSH_JOB_H__
-#define __LSH_JOB_H__
+#ifndef __SHELL_JOB_H__
+#define __SHELL_JOB_H__
 
 #include<termios.h>
 
-#include"lsh_terminal.h"
-#include"lsh_command.h"
+#include"shell_terminal.h"
+#include"shell_command.h"
 
 typedef struct Job{
 	//linked list of jobs. each job is representing a pipeline of commands

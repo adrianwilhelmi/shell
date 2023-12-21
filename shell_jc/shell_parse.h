@@ -1,10 +1,10 @@
-#ifndef __LSH_PARSE_H__
-#define __LSH_PARSE_H__
+#ifndef __SHELL_PARSE_H__
+#define __SHELL_PARSE_H__
 
 #include<stdio.h>
 
-#include"lsh_terminal.h"
-#include"lsh_command.h"
+#include"shell_terminal.h"
+#include"shell_command.h"
 
 int read_line(char**line);
 int split_line_into_words(char*words[], char*line);
