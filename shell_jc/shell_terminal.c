@@ -49,3 +49,13 @@ void enable_raw_mode(){
 void disable_raw_mode(){
 	tcsetattr(shell_terminal, TCSAFLUSH, &shell_terminal_modes);
 }
+
+char get_one_char(){
+	struct termios raw = shell_terminal_modes;
+	// Set return condition at first byte being received (For input timeout you can use `raw.c_cc[VTIME] = secs`)
+	raw.c_cc[VMIN] = 1;
+	tcsetattr(shell_terminal, TCSANOW, &raw);
+	char c = getchar();
+	tcsetattr(shell_terminal, TCSANOW, &shell_terminal_modes);
+	return c;
+}

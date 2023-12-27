@@ -12,5 +12,6 @@ extern int shell_terminal;
 void shell_initialization();
 void enable_raw_mode();
 void disable_raw_mode();
+char get_one_char();
 
 #endif

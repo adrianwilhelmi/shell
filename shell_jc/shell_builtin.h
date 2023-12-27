@@ -3,8 +3,8 @@
 
 #include"shell_command.h"
 
-extern char*built_in_functions_keys[];
-extern int(*built_in_functions[])(Command*command);
+extern const char*built_in_functions_keys[];
+extern const int(*built_in_functions[])(Command*command);
 
 //built in functions
 int handle_cd(Command*command);

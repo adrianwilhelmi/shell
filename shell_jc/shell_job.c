@@ -8,6 +8,7 @@
 #include"shell_terminal.h"
 #include"shell_command.h"
 #include"shell_job.h"
+#include"shell_globbing.h"
 
 void initialize_job(Job*job){
 	//initializez the job so it's ready to be used
@@ -429,10 +430,16 @@ void handle_job(Job*job, int background){
 		}
 		if(pid == 0){
 			//child
+			
+			//handle globbing (*, ?, etc.)
+			handle_globbing_patterns(current_command);
+			
+			//launch command
 			handle_command(current_command, fd_temp_in, fd_temp_out, fd_temp_err, job->pgid, background);
 		}
 		else{
 			//pa
+			
 			current_command->completed = 0;
 			current_command->stopped = 0;
 			current_command->pid = pid;

@@ -14,7 +14,7 @@
 #include"shell_job.h"
 #include"shell_builtin.h"
 #include"shell_sgrep.h"
-#include"shell_history.h"
+#include"shell_globbing.h"
 
 //global variables
 pid_t shell_pgid;
@@ -25,13 +25,9 @@ Job*first_job;
 //used to handle &, initially we wait 
 int background = 0;
 
-//history variables
-CHistory*command_history;
-Command*command_history_curr;
-
 //built in functions
-char*built_in_functions_keys[] = {"cd", "exit", "fg", "bg", "jobs", "sgrep"};
-int(*built_in_functions[])(Command*command) = {handle_cd, handle_exit, handle_fg, handle_bg, handle_jobs, sgrep};
+const char*built_in_functions_keys[] = {"cd", "exit", "fg", "bg", "jobs", "sgrep"};
+int const (*built_in_functions[])(Command*command) = {handle_cd, handle_exit, handle_fg, handle_bg, handle_jobs, sgrep};
 
 int initialize_background(char*words[], int number_of_words){
 	//initializes the flag if process should be handled in background (dependent on &)
@@ -64,6 +60,9 @@ int handle_built_in_functions(Command*command){
 void shell_loop(){
 	//main loop
 	
+	char*line;	
+	char**words;
+	
 	Job*current_job;
 	Command*commands;
 	
@@ -72,11 +71,14 @@ void shell_loop(){
 	
 	while(1){	
 		//read line
-		char*line;
 		path_max = read_line(&line);
-		
+		if(path_max == 1){
+			free(line);
+			continue;
+		}
+
 		//parse input into words
-		char**words = malloc(path_max*sizeof(char*));
+		words = malloc(path_max*sizeof(char*));
 		int number_of_words = split_line_into_words(words, line);
 		free(line);
 		if(number_of_words == 0){
