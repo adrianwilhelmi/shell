@@ -225,12 +225,7 @@ void print_job_info(){
 	Command*command;
 	
 	update_job_queue();
-	//update status info for child processes
-	/*
-	signal(SIGCHLD, SIG_DFL);
-	update_status();
-	signal(SIGCHLD, SIG_IGN);
-	*/
+
 	int counter = 1;
 	for(job = first_job; job != NULL; job = job->next){
 		printf("[%d]: ", counter);
@@ -268,6 +263,8 @@ void continue_job(Job*job, int background){
 	}
 	//mark as running
 	job->notified = 0;
+	
+	print_job_info();
 	
 	//actually run the job
 	if(background){

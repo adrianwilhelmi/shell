@@ -4,6 +4,9 @@
 #include<wordexp.h>
 
 void handle_globbing_patterns(Command*input_command){
+	//handles globalization (*, [a-z], ?, etc.) in given command
+	//creates new array of words with expanded glob patterns and replaces command in input_command with the new one
+	
 	wordexp_t glob_results;
 	
 	char**handled_command = malloc(sizeof(char*));
@@ -37,14 +40,12 @@ void handle_globbing_patterns(Command*input_command){
 	while(input_command->command[j] != NULL){
 		free(input_command->command[j]);
 		input_command->command[j] = strdup(handled_command[j]);
-		printf("input_command->command[%d] = %s\n", j, input_command->command[j]);
 		free(handled_command[j]);
 		++j;
 	}
 	index = j;
 	while(handled_command[index] != NULL){
 		input_command->command[index] = strdup(handled_command[index]);
-		printf("input_command->command[%d] = %s\n", index,  input_command->command[index]);
 		free(handled_command[index]);
 		++index;
 	}
