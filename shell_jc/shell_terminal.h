@@ -8,6 +8,7 @@
 extern pid_t shell_pgid;
 extern struct termios shell_terminal_modes;
 extern int shell_terminal;
+extern int loop_status;
 
 void shell_initialization();
 void enable_raw_mode();

@@ -20,7 +20,8 @@
 pid_t shell_pgid;
 struct termios shell_terminal_modes;
 int shell_terminal;
-Job*first_job;	
+Job*first_job;
+int loop_status;
 
 //used to handle &, initially we wait 
 int background = 0;
@@ -69,7 +70,8 @@ void shell_loop(){
 	//local 'PATH_MAX'
 	static int path_max;
 	
-	while(1){	
+	loop_status = 1;
+	while(loop_status){	
 		//read line
 		path_max = read_line(&line);
 		if(path_max == 1){
@@ -130,6 +132,9 @@ void shell_loop(){
 		//remove terminated jobs from the queue
 		update_job_queue();
 	}
+	
+	//restore terminal attributes
+	tcsetattr(shell_terminal, TCSADRAIN, &shell_terminal_modes);
 }
 
 int main(){

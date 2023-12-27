@@ -26,9 +26,10 @@ int handle_cd(Command*command){
 int handle_exit(Command*command){
 	//handle exit built in function
 	
-	free_commands(command, 1);
+//	free_commands(command, 1);
 	printf("exit\n");
-	exit(EXIT_SUCCESS);
+//	exit(EXIT_SUCCESS);
+	loop_status = 0;
 	return 1;
 }
 

@@ -44,8 +44,9 @@ int read_line(char**line){
 	
 	if(c == EOF){
 		printf("\nexit.\n");
-		free(*line);
-		exit(EXIT_SUCCESS);
+//		free(*line);
+//		exit(EXIT_SUCCESS);
+		loop_status = 0;
 	}
 
 	return buffer_size;
