@@ -15,6 +15,7 @@
 #include"shell_builtin.h"
 #include"shell_sgrep.h"
 #include"shell_globbing.h"
+#include"shell_history.h"
 
 //global variables
 pid_t shell_pgid;
@@ -69,12 +70,14 @@ void shell_loop(){
 	
 	//local 'PATH_MAX'
 	static int path_max;
+
+	initialize_command_history();
 	
 	loop_status = 1;
 	while(loop_status){	
 		//read line
 		path_max = read_line(&line);
-		if(path_max == 1){
+		if(path_max <= 1){
 			free(line);
 			continue;
 		}
@@ -132,6 +135,9 @@ void shell_loop(){
 		//remove terminated jobs from the queue
 		update_job_queue();
 	}
+	
+	//clean command history
+	free_command_history();
 	
 	//restore terminal attributes
 	tcsetattr(shell_terminal, TCSADRAIN, &shell_terminal_modes);
