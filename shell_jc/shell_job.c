@@ -441,8 +441,10 @@ void handle_job(Job*job, int background){
 			current_command->stopped = 0;
 			current_command->pid = pid;
 			//set this group's pid as this process' pid if its the first process
-			if(job->pgid == 0){
-				job->pgid = pid;
+			if(shell_is_interactive){
+				if(job->pgid == 0){
+					job->pgid = pid;
+				}
 			}
 			setpgid(pid, job->pgid);
 			job->notified = 0;
@@ -454,10 +456,13 @@ void handle_job(Job*job, int background){
 		current_command = current_command -> next;
 	}
 	
-	if(!background){
+	if(!shell_is_interactive){
+		wait_for_job(job);
+	}
+	else if(!background){
 		put_job_in_foreground(job, 0);
 	}
-	else if (background){
+	else if(background){
 		put_job_in_background(job, 0);
 	}
 }

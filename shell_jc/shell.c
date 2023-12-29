@@ -21,6 +21,8 @@
 pid_t shell_pgid;
 struct termios shell_terminal_modes;
 int shell_terminal;
+int shell_is_interactive;
+
 Job*first_job;
 int loop_status;
 
@@ -75,8 +77,14 @@ void shell_loop(){
 	
 	loop_status = 1;
 	while(loop_status){	
+		//enable raw mode before reading prompt from user
+		enable_raw_mode();
+		
 		//read line
 		path_max = read_line(&line);
+		
+		disable_raw_mode();
+		
 		if(path_max <= 1){
 			free(line);
 			continue;

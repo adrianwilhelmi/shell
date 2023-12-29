@@ -46,6 +46,10 @@ void clear_line(){
 	fflush(stdout);
 }
 
+void print_newline(){
+	write(shell_terminal, "\n", 1);
+}
+
 int read_line(char**line){
 	//prints current directory and parses input from terminal
 	//input:
@@ -54,8 +58,6 @@ int read_line(char**line){
 	//	buffer_size (int) - smallest 2^n that is > sizeof(*line), amount of memory allocated for *line
 	
 	
-	//enable raw mode to handle everything how we like
-	enable_raw_mode();
 	
 	//print current directory
 	buffer_size = 1;
@@ -258,8 +260,6 @@ int read_line(char**line){
 	
 	free(cwd_buffer);
 	free(line_with_cwd);
-	
-	disable_raw_mode();
 	
 	if(c == 4){
 		write(shell_terminal, "exit", 4);

@@ -10,40 +10,45 @@
 void shell_initialization(){
 	//initialize shell
 	shell_terminal = STDIN_FILENO;
+	shell_is_interactive = isatty(shell_terminal);
 	
-	//make sure shell has control over terminal
-	shell_pgid = getpgrp();
-	while(tcgetpgrp(shell_terminal) != getpgrp()){
+	if(shell_is_interactive){
+		//make sure shell has control over terminal
 		shell_pgid = getpgrp();
-		kill(-shell_pgid, SIGTTIN);
-	}
+		while(tcgetpgrp(shell_terminal) != getpgrp()){
+			shell_pgid = getpgrp();
+			kill(-shell_pgid, SIGTTIN);
+		}
 
-	//ignore signals
-	signal(SIGINT, SIG_IGN);
-	signal(SIGQUIT, SIG_IGN);
-	signal(SIGTSTP, SIG_IGN);
-	signal(SIGTTIN, SIG_IGN);
-	signal(SIGTTOU, SIG_IGN);
-	signal(SIGCHLD, SIG_IGN);
-	
-	//put shell in it's own process group
-	shell_pgid = getpid();
-	if(setpgid(shell_pgid, shell_pgid) < 0){
-		perror("couldnt put shell in its own process group");
-		exit(EXIT_FAILURE);
-	}
-	
-	//get control of the terminal by setting its group pid as shell's group id
-	tcsetpgrp(shell_terminal, shell_pgid);
+		//ignore signals
+		signal(SIGINT, SIG_IGN);
+		signal(SIGQUIT, SIG_IGN);
+		signal(SIGTSTP, SIG_IGN);
+		signal(SIGTTIN, SIG_IGN);
+		signal(SIGTTOU, SIG_IGN);
+		signal(SIGCHLD, SIG_IGN);
+		
+		//put shell in it's own process group
+		shell_pgid = getpid();
+		if(setpgid(shell_pgid, shell_pgid) < 0){
+			perror("couldnt put shell in its own process group");
+			exit(EXIT_FAILURE);
+		}
+		
+		//get control of the terminal by setting its group pid as shell's group id
+		tcsetpgrp(shell_terminal, shell_pgid);
 
-	//save terminal attributes
-	tcgetattr(shell_terminal, &shell_terminal_modes);
+		//save terminal attributes
+		tcgetattr(shell_terminal, &shell_terminal_modes);
+	}
 }
 
 void enable_raw_mode(){
-	struct termios raw = shell_terminal_modes;
+	struct termios raw;
+	tcgetattr(shell_terminal, &raw);
 	cfmakeraw(&raw);
-	tcsetattr(shell_terminal, TCSANOW, &raw);
+	tcsetattr(shell_terminal, TCSADRAIN, &raw);
+//	tcsetattr(shell_terminal, TCSAFLUSH, &raw);
 }
 
 void disable_raw_mode(){

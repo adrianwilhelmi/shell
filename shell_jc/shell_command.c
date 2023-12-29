@@ -113,7 +113,6 @@ void handle_command(Command*command, int input_file, int output_file, int output
 		close(output_err_file);
 	}
 	
-//	printf("current_command->pid: %d\n", command->pid);
 	execvp(command->command[0], command->command);
 	perror("command err");
 	exit(EXIT_FAILURE);
