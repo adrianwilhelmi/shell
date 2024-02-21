@@ -1,4 +1,6 @@
+LFLAG=-Iinclude
+
 all:
-	gcc -g -o shell shell.c shell_job.c shell_command.c shell_terminal.c shell_parse.c shell_builtin.c shell_sgrep.c shell_globbing.c shell_history.c
+	gcc -g $(LFLAG) -o shell src/shell.c src/shell_job.c src/shell_command.c src/shell_terminal.c src/shell_parse.c src/shell_builtin.c src/shell_sgrep.c src/shell_globbing.c src/shell_history.c
 clean:
 	rm shell
