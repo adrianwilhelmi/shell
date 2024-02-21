@@ -135,6 +135,7 @@ int check_process_status(pid_t pid, int status){
 					command->status = status;
 					if(WIFSTOPPED(status)){
 						command->stopped = 1;
+						printf("process %d: stopped by signal %d.\n", (int) pid, WTERMSIG(command->status));
 					}
 					else {
 						command->completed = 1;

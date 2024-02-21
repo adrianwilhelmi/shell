@@ -93,12 +93,18 @@ void handle_command(Command*command, int input_file, int output_file, int output
 		tcsetpgrp(shell_terminal, group_pid);
 	}
 	
-	signal(SIGINT, SIG_DFL);
-	signal(SIGQUIT, SIG_DFL);
-	signal(SIGTSTP, SIG_DFL);
-	signal(SIGTTIN, SIG_DFL);
-	signal(SIGTTOU, SIG_DFL);
-	signal(SIGCHLD, SIG_DFL);
+	struct sigaction sa;
+	sa.sa_handler = SIG_DFL;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+
+	//ignore signals
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGQUIT, &sa, NULL);
+	sigaction(SIGTSTP, &sa, NULL);
+	sigaction(SIGTTIN, &sa, NULL);
+	sigaction(SIGTTOU, &sa, NULL);
+	sigaction(SIGCHLD, &sa, NULL);
 	
 	if(input_file != STDIN_FILENO){
 		dup2(input_file, STDIN_FILENO);
